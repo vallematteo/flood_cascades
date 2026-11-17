@@ -9,6 +9,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from scipy import stats  # noqa: E402
@@ -198,3 +199,156 @@ def abc_results():
     band = s.index[s.abc_distance == 0]
     ks = pd.concat([abc_ks(pos, accepted[t]).assign(tol=t) for t in ABC_TOLERANCES], ignore_index=True)
     return s, pos, accepted, band, ks
+
+
+# ─── Foreclosure cascades
+
+def load_paired_seed(vartheta=None):
+    """data/cascades_rnet/paired_seed.csv.gz: per (cell, seed), the rates, R_net and the contrasts
+    with the delta = 0 run and the S0 run of the same seed; adds the multiplier M_net = 1/(1 - R_net)."""
+    ps = read("cascades_rnet/paired_seed.csv.gz")
+    assert (ps.R_net < 1).all(), "R_net = 1 somewhere: multiplier infinite"
+    ps["M_net"] = 1 / (1 - ps.R_net)
+    return ps if vartheta is None else ps[ps.vartheta == vartheta]
+
+
+def summarise(df, keys, cols):
+    """Per group of keys: mean of every column with its 95% Student-t interval (columns c, c_lo, c_hi)."""
+    rows = []
+    for k, g in df.groupby(keys):
+        rec = dict(zip(keys, k if isinstance(k, tuple) else (k,)))
+        for c in cols:
+            x = np.asarray(g[c], float)            # missing values propagate (nan mean)
+            m = x.mean()
+            h = stats.t.ppf(0.975, len(x) - 1) * x.std(ddof=1) / np.sqrt(len(x))
+            rec[c], rec[c + "_lo"], rec[c + "_hi"] = m, m - h, m + h
+        rows.append(rec)
+    return pd.DataFrame(rows)
+
+
+def contrast(a, b, multiplier):
+    """Flooded against S0 of the same seed: difference for R_net, log ratio for the multiplier."""
+    return np.log(a / b) if multiplier else a - b
+
+
+def contrast_to_percent(df, col):
+    """Mean log ratio and its interval as a percentage change, 100 (exp(.) - 1)."""
+    for c in (col, col + "_lo", col + "_hi"):
+        df[c] = 100 * np.expm1(df[c])
+    return df
+
+
+def r_by_scenario(ps, stat="M_net", kappa=10, beta2=0.5):
+    """Statistic (R_net or M_net) and R_gross per flooded scenario and delta, with the S0 run of the
+    same seed and the contrast (lambda averaged within seed, then mean and t interval over seeds).
+    Returns the flooded summary, the S0 summary and the per-seed table."""
+    multiplier = stat == "M_net"
+    d = ps[(ps.kappa == kappa) & (ps.beta2 == beta2)].assign(R_net=lambda x: x[stat])
+    s0 = d[d.setting == 0][["delta", "seed", "R_net", "R_gross"]].rename(
+        columns={"R_net": "R_net_S0", "R_gross": "R_gross_S0"})
+    x = d[d.setting > 0].merge(s0, on=["delta", "seed"])
+    x["dR_net"], x["dR_gross"] = contrast(x.R_net, x.R_net_S0, multiplier), x.R_gross - x.R_gross_S0
+    cols = ["R_net", "R_gross", "R_net_S0", "R_gross_S0", "dR_net", "dR_gross"]
+    w = x.groupby(["setting", "delta", "seed"])[cols].mean().reset_index()
+    flooded = summarise(w, ["setting", "delta"], cols)
+    if multiplier:
+        flooded = contrast_to_percent(flooded, "dR_net")
+    s0r = summarise(w[w.setting == 1].rename(columns={"R_net_S0": "Rn", "R_gross_S0": "Rg"}), ["delta"], ["Rn", "Rg"])
+    return flooded, s0r, w
+
+
+CASCADE_GROUPS = {"S0": [0], "S1": [1], "S4": [4]}
+
+
+def load_cascade_sizes(kappa=10, beta2=0.5, vartheta=0.05):
+    """Cascade sizes (data/cascades_rnet/sizes_by_run.csv.gz: run_id, method, size, count) of the
+    runs of one slice, and their run parameters (trees_by_run.csv.gz)."""
+    sizes = read("cascades_rnet/sizes_by_run.csv.gz")
+    meta = read("cascades_rnet/trees_by_run.csv.gz")[
+        ["run_id", "setting", "lambda", "kappa", "beta2", "vartheta", "delta", "seed"]]
+    meta = meta[(meta.kappa == kappa) & (meta.beta2 == beta2) & (meta.vartheta == vartheta)]
+    return sizes[sizes.run_id.isin(meta.run_id)], meta
+
+
+def size_density(sizes_all, meta, bw=0.3, smax=1500, n_grid=600, groups=None):
+    """Share of foreclosures by cascade size, per method (tree, comp), scenario group and delta,
+    smoothed with a Gaussian kernel of bandwidth bw in log size (each cascade weighted by its
+    size). Returns (grid, dens, peaks): dens[(method, group, delta)] is the density on the log-size
+    grid; peaks has, per cell, the peak of the large-cascade mode (sweep_peak, sizes > 2), the
+    valley between it and size 1, and the share of foreclosures in cascades of size >= the valley
+    (sweep_share, counted on the raw sizes)."""
+    grid = np.linspace(0, np.log(smax), n_grid)
+    groups = groups or CASCADE_GROUPS
+    s = sizes_all.merge(meta[["run_id", "setting", "delta"]], on="run_id")
+    s = pd.concat([s[s.setting.isin(v)].assign(group=k) for k, v in groups.items()])
+    dens, rows = {}, []
+    for (m, fl, d), g in s.groupby(["method", "group", "delta"]):
+        x, w = np.log(g["size"].values), (g["size"] * g["count"]).values.astype(float)
+        k = np.exp(-0.5 * ((grid[:, None] - x[None, :]) / bw) ** 2) @ w
+        k /= k.sum()
+        dens[(m, fl, d)] = k
+        loc = [j for j in range(1, len(k) - 1) if k[j] > k[j - 1] and k[j] >= k[j + 1] and np.exp(grid[j]) > 2]
+        pk = val = np.nan
+        share = 0.0
+        if loc:
+            j = max(loc, key=lambda j: k[j])
+            v = int(np.argmin(k[:j + 1]))
+            pk, val = np.exp(grid[j]), np.exp(grid[v])
+            share = w[g["size"].values >= val].sum() / w.sum()
+        rows.append(dict(method=m, group=fl, delta=d, sweep_peak=pk, valley=val, sweep_share=share,
+                         n_runs=g.run_id.nunique(), n_cascades=int(g["count"].sum())))
+    return grid, dens, pd.DataFrame(rows)
+
+
+# ─── Plot helpers of the cascade figures
+
+def style_axes(ax, xlabel, ylabel, zero=False, fs=FS):
+    ax.set_xlabel(xlabel, fontsize=fs, fontweight="bold")
+    ax.set_ylabel(ylabel, fontsize=fs, fontweight="bold")
+    ax.tick_params(labelsize=fs - 5)
+    ax.grid(axis="y", alpha=0.3, linestyle="--")
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    if zero:
+        ax.axhline(0, color="black", linewidth=1.5)
+
+
+def points(ax, d, x, y, color, label, dx=0.0, marker="o", **kw):
+    """Means as points with 95% interval error bars, shifted by dx along x."""
+    d = d.sort_values(x)
+    yerr = [d[y] - d[f"{y}_lo"], d[f"{y}_hi"] - d[y]] if f"{y}_lo" in d else None
+    ax.errorbar(d[x] + dx, d[y], yerr=yerr, fmt=marker, markersize=11, color=color, label=label,
+                elinewidth=2, capsize=4, linestyle="none", **kw)
+
+
+def curve(ax, s, col, color, ls="-", marker="o"):
+    """Mean line against delta with its 95% band."""
+    s = s.sort_values("delta")
+    ax.plot(s.delta, s[col], color=color, linestyle=ls, marker=marker, markersize=9, linewidth=3)
+    ax.fill_between(s.delta, s[col + "_lo"], s[col + "_hi"], color=color, alpha=0.18, linewidth=0)
+
+
+def level_axis(ax, multiplier):
+    """Level panels: log axis for the multiplier, line at the no-cascade level (R_net 0, M 1)."""
+    if multiplier:
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=0.8)
+        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.axhline(1.0 if multiplier else 0.0, color="black", linewidth=1.5)
+
+
+def delta_positions(flooded, s0r):
+    """Categorical x positions of the delta > 0 cells, for the flooded and the S0 summaries."""
+    deltas = sorted(flooded.delta[flooded.delta > 0].unique())
+    pos = {d: i for i, d in enumerate(deltas)}
+    s0 = s0r.rename(columns={"Rn": "R_net", "Rn_lo": "R_net_lo", "Rn_hi": "R_net_hi",
+                             "Rg": "R_gross", "Rg_lo": "R_gross_lo", "Rg_hi": "R_gross_hi"})
+    s0 = s0[s0.delta > 0].assign(x=lambda d: d.delta.map(pos))
+    fl = flooded[flooded.delta > 0].assign(x=lambda d: d.delta.map(pos))
+    return deltas, fl, s0
+
+
+def delta_axis(ax, deltas):
+    ax.set_xticks(range(len(deltas)), [f"{d:g}" for d in deltas])
+    ax.set_xlim(-0.6, len(deltas) - 0.4)
