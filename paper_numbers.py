@@ -18,11 +18,11 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from utils import (ABC_PARAMS, CALIBRATED, EMPIRICAL_BANDS, PREPARATION, ROOT, YEARS, abc_bootstrap, abc_distance,
-                   abc_results, compare_methods, gsa_outcome, gsa_problem, load_attribution_free, load_cascade_runs,
+from utils import (ABC_PARAMS, CALIBRATED, EMPIRICAL_BANDS, GEV_SCENARIOS, PREPARATION, ROOT, TIERS, YEARS, abc_bootstrap, abc_distance,
+                   abc_results, compare_methods, draw_applicants, gsa_outcome, gsa_problem, load_attribution_free, load_cascade_runs,
                    load_cascade_sizes, load_gsa_runs, load_gsa_vectors, load_paired_seed, load_problem,
                    load_saltelli_matrix, load_timing, map_fields, pawn_design, pawn_indices, pawn_threshold,
-                   r_by_scenario, read, size_density, sobol_indices, sparks_and_sweeps, summarise)
+                   r_by_scenario, read, read_map, size_density, sobol_indices, sparks_and_sweeps, summarise)
 
 ROWS = []
 
@@ -38,6 +38,35 @@ def t_mean(x):
     x = np.asarray(x, float)
     h = stats.t.ppf(0.975, len(x) - 1) * x.std(ddof=1) / np.sqrt(len(x))
     return x.mean(), x.mean() - h, x.mean() + h
+
+
+# ─── SI, Flood scenarios and flood maps ──────────────────────────────────────────────────
+
+def gev_peak(mu, sigma, xi):
+    """Mode and density at the mode of GEV(mu, sigma, xi) (SI, equation of the GEV peak)."""
+    return mu + sigma / xi * ((1 + xi) ** (-xi) - 1), (1 + xi) ** (1 + xi) * np.exp(-(1 + xi)) / sigma
+
+
+def flood_scenarios_and_maps():
+    w = "SI Flood scenarios"
+    x0, f0 = gev_peak(10.0, 27.0, 0.2)
+    number(w, "mode of the reference GEV(10, 27, 0.2)", x0, 5.17)
+    number(w, "density at the mode of the reference", f0, 0.0139, 4)
+    peaks = np.array([gev_peak(*p) for p in GEV_SCENARIOS.values()])
+    number(w, "mode of the scenarios, lowest", peaks[:, 0].min(), 5.0, 1)
+    number(w, "mode of the scenarios, highest", peaks[:, 0].max(), 7.4, 1)
+    number(w, "density at the mode of the scenarios, lowest", peaks[:, 1].min(), 0.0134, 4)
+    number(w, "density at the mode of the scenarios, highest", peaks[:, 1].max(), 0.0143, 4)
+
+    w = "SI Fig. 2 caption"
+    region = read_map("nvm_cleaned.png") > 0                     # cells with housing
+    for (tier, f), printed in zip(TIERS, (4.4, 9.1, 12.1, 14.3)):
+        number(w, f"flooded share of the region, {tier} map (%)", 100 * ((read_map(f) > 0) & region).sum() / region.sum(), printed, 1)
+    housing, region_fig, band, rate0, rate4, ratio = map_fields(4, 0.05)
+    number(w, "local rate S4 / S0, median over cells inside the flood extent", 2 ** np.nanmedian(ratio[band > 0]), 5.2, 1)
+    number(w, "local rate S4 / S0, median over cells outside the flood extent", 2 ** np.nanmedian(ratio[band == 0]), 1.4, 1)
+    number(w, "masked cells, smoothed housing density below 5% of its maximum (% of the region)",
+           100 * (region_fig & np.isnan(rate0)).sum() / region_fig.sum(), 2.1, 1)
 
 
 # ─── SI, Baseline parametrisation (initialization) ───────────────────────────────────────
@@ -57,6 +86,36 @@ def initialization():
     number(w, "exp_lb, mean social assistance norm 2021-2023 (EUR)", b.exp_lb, 1087, 0)
     number(w, "mean unemployment rate 2021-2025 (%)", b.eta_data_pct, 3.77)
     return b
+
+
+# SI Table 5 as printed: attribute -> (applicants, admitted), each (median, lower quartile, upper quartile)
+TABLE_S5 = {"income": ((2081, 1225, 3198), (3523, 2868, 4619), 0), "zeta": ((0.65, 0.38, 0.90), (0.92, 0.80, 1.06), 2),
+            "install_share": ((0.43, 0.24, 0.84), (0.19, 0.13, 0.27), 2), "install": ((878, 608, 1255), (687, 503, 901), 0),
+            "ltv": ((0.57, 0.50, 0.64), (0.54, 0.47, 0.59), 2), "v": ((187, 133, 261), (155, 115, 202), 0),
+            "sen": ((21, 9, 39), (21, 9, 39), 0)}
+
+
+def admission():
+    """Applicants and admitted households at entry (utils.draw_applicants, 2 x 10^6 draws, seed 0)."""
+    a = draw_applicants()
+    adm = a[a.admitted]
+    w = "SI Agent initialisation (admission)"
+    number(w, "applicants admitted (%)", 100 * a.admitted.mean(), 16.5, 1)
+    number(w, "median funds over loan of the applicants", a.zeta.median(), 0.65)
+    number(w, "admitted with income above 3000 EUR per month (%)", 100 * (adm.income > 3000).mean(), 70, 0)
+    number(w, "admitted with funds above 80% of the loan (%)", 100 * (adm.zeta > 0.8).mean(), 75, 0)
+    number(w, "applicants with income above 3000 EUR per month (%)", 100 * (a.income > 3000).mean(), 28, 0)
+    number(w, "applicants with funds above 80% of the loan (%)", 100 * (a.zeta > 0.8).mean(), 35, 0)
+    number(w, "instalment over income, median admitted (%)", 100 * adm.install_share.median(), 19, 0)
+    number(w, "instalment over income, median applicant (%)", 100 * a.install_share.median(), 43, 0)
+    number(w, "admitted paying less than 40% of income (%)", 100 * (adm.install_share < 0.4).mean(), 95, 0)
+    number(w, "applicants paying less than 40% of income (%)", 100 * (a.install_share < 0.4).mean(), 46, 0)
+    number(w, "applicants in the first seniority band (%)", 100 * (a.sen <= 100).mean(), 99.95)
+    w = "SI Table 5"
+    for col, (app, admd, d) in TABLE_S5.items():
+        for who, x, printed in (("applicants", a[col], app), ("admitted", adm[col], admd)):
+            for stat, q, p in zip(("median", "lower quartile", "upper quartile"), (50, 25, 75), printed):
+                number(w, f"{col}, {who}, {stat}", np.percentile(x, q), p, d)
 
 
 def zeta_scale():
@@ -604,7 +663,9 @@ def cascades():
 
 
 def main():
+    flood_scenarios_and_maps()
     baseline = initialization()
+    admission()
     zeta_scale()
     calibration(baseline)
     rates()

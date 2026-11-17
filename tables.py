@@ -1,6 +1,8 @@
 """Results tables of the paper and the SI, as LaTeX tabulars.
 
     Table 1       monthly probability of each flood-damage tier under S0 to S4
+    SI Table 5    applicants and admitted households: median and interquartile range of each
+                  attribute at entry, from 2 x 10^6 applicant draws (seed 0)
     SI Table 6    calibration: KS distance of every parameter between retained and all
                   combinations, bootstrap interval, max-T threshold
     SI Table 8    rank of every parameter by its PAWN index (mean over the scenarios) at
@@ -9,7 +11,7 @@
     SI Table 10   S0: share of foreclosures in large cascades, R_gross, R_net, M, mean tree size
 
 Run:    uv run python tables.py
-Writes: output/tables/table_1.tex, table_S6.tex, table_S8.tex, table_S9.tex, table_S10.tex
+Writes: output/tables/table_1.tex, table_S5.tex, table_S6.tex, table_S8.tex, table_S9.tex, table_S10.tex
 """
 import os
 
@@ -18,7 +20,7 @@ import pandas as pd
 from SALib.analyze import pawn
 from scipy.stats import genextreme
 
-from utils import (ABC_PARAMS, GEV_SCENARIOS, TABLES, abc_bootstrap, abc_results, compare_methods, gsa_outcome,
+from utils import (ABC_PARAMS, GEV_SCENARIOS, TABLES, abc_bootstrap, draw_applicants, abc_results, compare_methods, gsa_outcome,
                    gsa_problem, load_cascade_sizes, load_paired_seed, pawn_design, size_density,
                    sparks_and_sweeps, summarise)
 
@@ -52,6 +54,23 @@ def table_1():
     write("table_1", [r"\toprule",
                       r"{Damage tier} & {Map} & {$\mathcal{S}_0$} & {$\mathcal{S}_1$} & {$\mathcal{S}_2$} & {$\mathcal{S}_3$} & {$\mathcal{S}_4$} \\",
                       r"\midrule", *rows, r"\bottomrule"])
+
+
+# attribute, row label, decimals of SI Table 5
+TABLE_S5_ROWS = [("income", r"Income $I_i$ (euro per month)", 0), ("zeta", r"Funds over loan $\zeta_i$", 2),
+                 ("install_share", r"Instalment over income $P_i/I_i$", 2), ("install", r"Instalment $P_i$ (euro per month)", 0),
+                 ("ltv", r"Loan-to-value $\LTV_i$", 2), ("v", r"Property value $v_i$ (thousand euro)", 0),
+                 ("sen", r"Seniority $\mathit{sen}_i$ (months)", 0)]
+
+
+def table_s5():
+    a = draw_applicants()
+    cell = lambda x, d: "{0:.{d}f} [{1:.{d}f}, {2:.{d}f}]".format(*np.percentile(x, [50, 25, 75]), d=d)
+    lines = [r"\begin{tabular}{l l l}", r"\toprule", r"Attribute & Applicants & Admitted \\", r"\midrule"]
+    for col, label, d in TABLE_S5_ROWS:
+        lines.append(f"{label} & {cell(a[col], d)} & {cell(a.loc[a.admitted, col], d)} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    write("table_S5", lines)
 
 
 def table_s6():
@@ -134,6 +153,7 @@ def table_s10():
 
 if __name__ == "__main__":
     table_1()
+    table_s5()
     table_s6()
     table_s8()
     table_s9()

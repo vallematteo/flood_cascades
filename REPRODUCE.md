@@ -18,8 +18,10 @@ of its script) and the error bars of the Sobol' panels (SALib's bootstrap was un
 package seeds it). The uv environment uses matplotlib's wheel, which bundles FreeType 2.6.1, so
 text and line edges are anti-aliased slightly differently; the content is identical.
 `tables.py` reproduces every cell of the result tables except one (SI Table 9, delta = 0.2,
-S1: 30.4 against 30.5 in the paper). `paper_numbers.py` recomputes 325 numbers of the paper and
-the SI; 318 match, and the 7 others are rounding slips in the text.
+S1: 30.4 against 30.5 in the paper). `paper_numbers.py` recomputes 405 numbers of the paper and
+the SI (SI Table 5 cell by cell among them); 387 match. Of the others, 7 are rounding slips in
+the text, and 11 are euro-valued cells of SI Table 5 that differ by 1 to 3 euros: the paper's
+applicant draws were unseeded, the package draws the same number with a fixed seed.
 
 ## Experiments
 
@@ -95,7 +97,7 @@ The cascade timings are from the log of an identical design run on 2026-11-05 (j
 | SI Figs 9 and 10 | `figure_S9.py`, `figure_S10.py` | `data/cascades_rnet/paired_seed.csv.gz` | `cascades_rnet` |
 | SI Figs 11 and 12 | `figure_S11.py`, `figure_S12.py` | `data/foreclosure_timing/` | `foreclosure_timing` |
 | SI Tables 1 to 4 | none: model specification (parameters, distributions, attributes, scorecard) | | |
-| SI Table 5 | TODO: admission of 2 x 10^6 applicant draws | | |
+| SI Table 5 | `tables.py` | none: 2 x 10^6 applicant draws from the model's distributions and scorecard (`utils.draw_applicants`, seed 0) | |
 | SI Table 6 | `tables.py` | `data/abc_calibration/` | `abc_calibration` |
 | SI Table 7 | none: sampling ranges of the sensitivity analysis | | |
 | SI Table 8 | `tables.py` | `data/global_sa/` | `global_sa` |

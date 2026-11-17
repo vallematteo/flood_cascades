@@ -663,3 +663,45 @@ def map_fields(flood_setting=4, min_pop=0.05):
         rate_flood = np.where(keep, fields[flood_setting], np.nan)
     ratio[~np.isfinite(ratio)] = np.nan
     return housing, region, band, rate0, rate_flood, ratio
+
+
+# ─── Admission of applicants (SI Table 5)
+
+ADMISSION_DRAWS = 2_000_000
+ADMISSION_SEED = 0
+ACCEPT_SCORE = 200          # admission threshold A
+LOAN_TERM = 120             # months, n_{i,0} of entrants
+
+
+def rand_burr(rng, c, d, loc, scale, n):
+    """Burr Type III draws by inverse transform, as rand_burr in model/model.jl."""
+    u = rng.uniform(0.0, 1.0, n)
+    return scale * (u ** (-1.0 / d) - 1.0) ** (-1.0 / c) + loc
+
+
+def scorecard(zeta, income, sen, ltv, install):
+    """Admission score, as scorecard in model/utils.jl (SI Table 4)."""
+    cap = np.select([zeta <= 0.4, zeta <= 0.6, zeta <= 0.8], [20, 40, 60], 80)
+    inc = np.select([income <= 1500, income <= 2000, income <= 2500, income <= 3000], [13, 26, 39, 52], 65)
+    snr = np.select([sen <= 100, sen <= 200, sen <= 300, sen <= 400], [13, 26, 39, 52], 65)
+    ltv_s = np.select([ltv <= 0.4, ltv <= 0.6, ltv <= 0.8], [50, 37.5, 25], 12.5)
+    inst = np.select([install <= 800, install <= 1000, install <= 1200], [40, 30, 20], 10)
+    return cap + inc + snr + ltv_s + inst
+
+
+def draw_applicants(n=ADMISSION_DRAWS, seed=ADMISSION_SEED, zeta_scale=0.015):
+    """Applicants at entry with the distributions of the model (add_agents! in model/model.jl,
+    SI Table 3), their score and admission. Property value v in thousand euro."""
+    rng = np.random.default_rng(seed)
+    a = pd.DataFrame({
+        "income": rand_burr(rng, 3.30, 0.45, -12.76, 3101.46, n),
+        "sen": rng.beta(0.88, 2.79, n) * 106.34 + 1.0,
+        "zeta": rand_burr(rng, 9.42, 0.14, -0.11, 73.40, n) * zeta_scale,
+        "ltv": np.abs(rng.normal(0.57, 0.1, n)),
+        "v": rand_burr(rng, 3.38, 0.92, -1.34, 195.25, n),
+    })
+    a["install"] = a.ltv * a.v * 1000 / LOAN_TERM
+    a["install_share"] = a.install / a.income
+    a["score"] = scorecard(a.zeta, a.income, a.sen, a.ltv, a.install)
+    a["admitted"] = a.score >= ACCEPT_SCORE
+    return a
