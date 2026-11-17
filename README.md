@@ -63,10 +63,10 @@ Tested on:
 - macOS 27.2 (Apple M3 Pro)
 - TODO: cluster operating system
 
-Dependencies (exact versions are pinned in `Manifest.toml` and `requirements.txt`):
+Dependencies (exact versions are pinned in `Manifest.toml` for Julia and in `pyproject.toml` / `uv.lock` for Python):
 
 - Julia 1.10.4, with Agents.jl 7.0.1 and the packages in `Project.toml`
-- Python 3.11, with pandas 2.3.3, NumPy 1.26.4, SciPy 1.11.4, Matplotlib 3.10.8 (TODO: complete list in `requirements.txt`)
+- Python 3.11, managed with [uv](https://docs.astral.sh/uv/): NumPy 1.26.4, pandas 2.3.3, SciPy 1.11.4, Matplotlib 3.10.8, SALib 1.4.7, Pillow 10.2.0, PyArrow 23.0.0
 
 No non-standard hardware is required.
 
@@ -81,9 +81,8 @@ cd flood_cascades
 # Julia environment (Julia 1.10.4)
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 
-# Python environment
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# Python environment (uv installs Python 3.11 and the pinned packages into .venv)
+uv sync
 ```
 
 ## Demo
@@ -97,6 +96,9 @@ TODO. In short:
 ```bash
 bash reproduce.sh        # every figure, table and number from data/ (level A)
 ```
+
+Run every Python script through uv, for example `uv run python figure_2.py`, so it uses the
+pinned environment.
 
 [REPRODUCE.md](REPRODUCE.md) lists each figure, table and number block with its script, data,
 run time, and how to regenerate its data from the simulations.

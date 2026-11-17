@@ -8,7 +8,7 @@ foreclosure locations, and smoothing is linear, so these counts reproduce them e
 Runs kept: main block, no spillover (delta = 0), kappa = 10, beta1 - beta2 = 0.5
 (beta2 = 0.5), vartheta = 0.05, every flood scenario and damage share.
 
-Run:    python experiments/cascades_rnet/reduce_fcl_cells.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
+Run:    uv run python experiments/cascades_rnet/reduce_fcl_cells.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
 Writes: data/cascades_rnet/fcl_cells.csv.gz   (run_id, x, y, n_fcl)
 """
 import argparse

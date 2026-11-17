@@ -19,7 +19,7 @@ Designs: `gap` (beta1 - beta2 in {0.45, 0.5, 0.55, 0.6, 0.7}, 750 runs) and `bet
 On a laptop, from the repository root:
 
     julia --project=. experiments/foreclosure_timing/run.jl --num-workers 10
-    python experiments/foreclosure_timing/reduce_foreclosure_timing.py
+    uv run python experiments/foreclosure_timing/reduce_foreclosure_timing.py
 
 A run takes about 8 s on one core; the full design takes about TODO minutes on 10 cores of an
 Apple M3 Pro.

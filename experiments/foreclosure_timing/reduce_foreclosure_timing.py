@@ -8,7 +8,7 @@ foreclosure, only the variables used by Fig. 5, SI Figs 11 and 12 and the quoted
 
 Designs: gap (beta1 - beta2 from 0.45 to 0.7) and beta3 (beta3 from 0.5 to 2).
 
-Run:    python experiments/foreclosure_timing/reduce_foreclosure_timing.py [--runner-dir output/foreclosure_timing/raw]
+Run:    uv run python experiments/foreclosure_timing/reduce_foreclosure_timing.py [--runner-dir output/foreclosure_timing/raw]
 Writes: data/foreclosure_timing/{gap,beta3}_runs.csv
         data/foreclosure_timing/{gap,beta3}_foreclosures.csv.gz
 """

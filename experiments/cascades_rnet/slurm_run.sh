@@ -12,9 +12,10 @@
 # Submit from the repository root:
 #     sbatch experiments/cascades_rnet/slurm_run.sh
 #
-# Needs Julia 1.10.4 (the environment in Project.toml / Manifest.toml, instantiated) and
-# Python 3.11 with requirements.txt. Load them as your cluster requires, for example:
-#     module load Julia/1.10.4-linux-x86_64 Python/3.11.3-GCCcore-12.3.0
+# Needs Julia 1.10.4 (the environment in Project.toml / Manifest.toml, instantiated) and uv
+# (https://docs.astral.sh/uv/; `uv sync` once in the repository). Load Julia as your cluster
+# requires, for example:
+#     module load Julia/1.10.4-linux-x86_64
 #
 # The raw output (about 1.5 GB) goes to $RAW_DIR; the reduced files go to data/cascades_rnet/.
 # On a 192-core node (AMD Genoa) the simulation took TODO hours.
@@ -31,9 +32,9 @@ julia --project=. experiments/cascades_rnet/run.jl \
     --out-dir "$RAW_DIR"
 
 # 2. Reduction to data/cascades_rnet/
-python experiments/cascades_rnet/reduce_runs.py              --raw-dir "$RAW_DIR"
-python experiments/cascades_rnet/reconstruct_cascades.py     --raw-dir "$RAW_DIR" --workers 64
-python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir "$RAW_DIR" --workers 64
-python experiments/cascades_rnet/reduce_fcl_cells.py         --raw-dir "$RAW_DIR"
+uv run python experiments/cascades_rnet/reduce_runs.py              --raw-dir "$RAW_DIR"
+uv run python experiments/cascades_rnet/reconstruct_cascades.py     --raw-dir "$RAW_DIR" --workers 64
+uv run python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir "$RAW_DIR" --workers 64
+uv run python experiments/cascades_rnet/reduce_fcl_cells.py         --raw-dir "$RAW_DIR"
 
 echo "Done: $(date)"

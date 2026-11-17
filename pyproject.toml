@@ -1,0 +1,20 @@
+[project]
+name = "flood-cascades"
+version = "0.1.0"
+description = "Code and data for 'Neighbourhood flood damage amplifies mortgage default cascades'"
+readme = "README.md"
+license = "MIT"
+requires-python = "==3.11.*"
+# Exact versions used to produce the data and figures of the paper.
+dependencies = [
+    "numpy==1.26.4",
+    "pandas==2.3.3",
+    "scipy==1.11.4",
+    "matplotlib==3.10.8",
+    "SALib==1.4.7",
+    "pillow==10.2.0",
+    "pyarrow==23.0.0",
+]
+
+[tool.uv]
+package = false   # a collection of scripts, not an installable package

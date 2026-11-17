@@ -15,7 +15,7 @@ Second grouping, without weights or random draws: connected components of the ca
 graph, in which every child is joined to all its candidates. Components are kept when their
 earliest member lies in the same window.
 
-Run:    python experiments/cascades_rnet/reconstruct_cascades.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
+Run:    uv run python experiments/cascades_rnet/reconstruct_cascades.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
 Writes: data/cascades_rnet/sizes_by_run.csv.gz  run_id, method (tree or comp), size, count
         data/cascades_rnet/trees_by_run.csv.gz  per run: parameters, foreclosures, attributed
                                                 foreclosures, number of trees and components,

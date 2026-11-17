@@ -12,7 +12,7 @@ The weighted trees of reconstruct_cascades.py rest on the within-month counterfa
 Runs: kappa = 10, beta2 = 0.5 (beta1 - beta2 = 0.5), vartheta = 0.05, every scenario,
 lambda and delta.
 
-Run:    python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
+Run:    uv run python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
 Writes: data/cascades_rnet/af_sizes_by_run.csv  run_id, size, count, method (= af)
         data/cascades_rnet/af_runs.csv          per run: foreclosures, clusters, largest cluster
 """

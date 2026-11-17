@@ -7,7 +7,7 @@ Each table is saved as cbs/<table>_<pull date>.csv, with the dimension codes rep
 their labels (the same layout as the cbsodata package). CBS revises its tables, so every
 pull is kept under its own date; baseline_parameters.py states which pull the paper uses.
 
-Run:    python preparation/initialization/download_cbs.py
+Run:    uv run python preparation/initialization/download_cbs.py
 Needs:  an internet connection; Python standard library and pandas only.
 """
 import datetime

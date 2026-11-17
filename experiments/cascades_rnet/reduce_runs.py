@@ -14,7 +14,7 @@ delta, seed):
 
 Rates are annual foreclosures per 100 active mortgages over the post-warm-up window.
 
-Run:    python experiments/cascades_rnet/reduce_runs.py --raw-dir <folder with runs_chunk*.csv>
+Run:    uv run python experiments/cascades_rnet/reduce_runs.py --raw-dir <folder with runs_chunk*.csv>
 Writes: data/cascades_rnet/runs_all.csv.gz     all successful runs, one row each
         data/cascades_rnet/paired_seed.csv.gz  per (cell, seed): rates, R_net, C, R_gross, flood, C_S0, I
 """
