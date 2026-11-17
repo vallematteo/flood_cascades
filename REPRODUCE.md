@@ -28,8 +28,10 @@ explains how to regenerate it, and the reduced data it produces is included in `
 ## Computing resources
 
 The three cluster experiments ran on the Snellius national supercomputer (SURF, the
-Netherlands), partition `fat_genoa`: nodes with 2 AMD EPYC 9654 (Genoa) processors, 192 cores
-and 1.5 TiB of memory (about 8 GiB per core). Each experiment ran as one SLURM job on one node
+Netherlands), partition `fat_genoa` (48 nodes, `fcn[73-120]`): nodes with 2 AMD EPYC 9654
+(Genoa) processors, 192 cores and 1,474,560 MB (1.41 TiB) of schedulable memory, with a default
+of 7,680 MB per core (SLURM `DefMemPerCPU`; from `scontrol show partition fat_genoa` and
+`scontrol show node`). Each experiment ran as one SLURM job on one node
 (the global sensitivity analysis as a 5-task array, one node per task), with 192 single-core
 Julia workers and 336 GB of memory requested per node (`--ntasks=192 --cpus-per-task=1
 --mem=336G`). That node type was the one available; the experiments do not need it.
