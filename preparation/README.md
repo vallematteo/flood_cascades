@@ -32,8 +32,12 @@ series. TODO: the script that draws a new series from the scenario parameters.
 
 | File | Content |
 |---|---|
-| `85887NED.csv` | CBS StatLine table 85887NED (income and expenditure by income decile), used for the expenditure-share fit of m and ε |
-| `83679NED.csv` | CBS StatLine table 83679NED (expenditure shares by income decile), used for the lower bound on non-housing expenditure |
+| `download_cbs.py` | downloads the CBS StatLine tables below through the CBS open-data API and saves each pull under its date |
+| `cbs/85887NED_2026-03-16.csv` | CBS 85887NED, income and consumption expenditure by income decile; the pull used in the paper (a pull on 2026-11-17 was identical) |
+| `cbs/80590NED_2026-11-17.csv` | CBS 80590NED, labour force and unemployment, monthly |
+| `baseline_parameters.py` | baseline values of m and ε (nonlinear least squares on the income deciles, with standard errors and the linearised OLS check), exp_lb (mean social assistance norm 2021 to 2023) and η (mean monthly unemployment rate 2021 to 2025) |
+| `baseline_parameters.csv` | the output of `baseline_parameters.py` |
 | `targets/` | the empirical bands for the calibration (NHG foreclosure rate, BKR financial distress), every source figure behind them, and the script that builds them; see [targets/README.md](targets/README.md) |
 
-CBS tables are published under CC-BY 4.0. TODO: pull dates.
+The paper's value of η (3.77%) was computed from a pull of 80590NED on 2026-03-17 that was not
+saved; the pull of 2026-11-17 gives the same value. CBS tables are published under CC-BY 4.0.

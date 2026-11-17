@@ -37,7 +37,7 @@ The package can be used at three levels:
 | Path | Content |
 |---|---|
 | [`model/`](model) | the agent-based model (`model.jl`, `agents.jl`, `utils.jl`) |
-| [`inputs/`](inputs) | everything the model and the calibration read: flood maps, flood-severity series, CBS, NHG and BKR data ([inputs/README.md](inputs/README.md)) |
+| [`preparation/`](preparation) | everything the model and the calibration read: flood maps, flood-severity series, CBS, NHG and BKR data ([preparation/README.md](preparation/README.md)) |
 | `experiments/` | TODO: one folder per experiment, with its parameter design, simulation runner, SLURM script and reduction script |
 | `data/` | TODO: reduced simulation output, the only data the figure and number scripts read |
 | `figure_*.py` | TODO: one script per figure, named by its number in the paper (`figure_2.py`) or SI (`figure_S1.py`) |
@@ -104,7 +104,7 @@ run time, and how to regenerate its data from the simulations.
 ## License
 
 Code: MIT License (see [LICENSE](LICENSE)). Data in `data/`: TODO (CC-BY 4.0). Third-party data
-in `inputs/` keeps the licence of its source (see [inputs/README.md](inputs/README.md)).
+in `preparation/` keeps the licence of its source (see [preparation/README.md](preparation/README.md)).
 
 ## Citation
 

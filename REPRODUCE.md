@@ -35,15 +35,15 @@ explains how to regenerate it, and the reduced data it produces is included in `
 | Fig. 3b | TODO `figure_3.py` | TODO `data/global_sa/` | TODO | `global_sa` |
 | Fig. 4 | TODO `figure_4.py` | TODO `data/cascades_rnet/` | TODO | `cascades_rnet` |
 | Fig. 5 | TODO `figure_5.py` | TODO `data/foreclosure_timing/` | TODO | `foreclosure_timing` |
-| Table 1 | TODO `tables.py` | `inputs/gev/` | TODO | GEV scenario parameters |
+| Table 1 | TODO `tables.py` | `preparation/gev/` | TODO | GEV scenario parameters |
 | Numbers in the text | TODO `paper_numbers.py` | TODO | TODO | all |
 
 ## Supplementary Information
 
 | Item | Script | Data | Run time | Data from |
 |---|---|---|---|---|
-| SI Fig. 1 | TODO `figure_S1.py` | `inputs/gev/` | TODO | GEV scenario parameters |
-| SI Fig. 2 | TODO `figure_S2.py` | TODO `inputs/flood_maps/`, `data/cascades_rnet/` | TODO | `cascades_rnet` |
+| SI Fig. 1 | TODO `figure_S1.py` | `preparation/gev/` | TODO | GEV scenario parameters |
+| SI Fig. 2 | TODO `figure_S2.py` | TODO `preparation/flood_maps/`, `data/cascades_rnet/` | TODO | `cascades_rnet` |
 | SI Fig. 3 | TODO `figure_S3.py` | TODO `data/global_sa/` | TODO | `global_sa` |
 | SI Fig. 4 | TODO `figure_S4.py` | TODO `data/global_sa/` | TODO | `global_sa` |
 | SI Fig. 5 | TODO `figure_S5.py` | TODO `data/global_sa/` | TODO | `global_sa` |
@@ -65,7 +65,8 @@ explains how to regenerate it, and the reduced data it produces is included in `
 
 | Input | File | Produced by |
 |---|---|---|
-| flood-severity series (2,500 months per scenario) | `inputs/gev/gev_config_static_2500.csv` | reference file used for every simulation in the paper (TODO: generating script) |
-| GEV scenario parameters and tier probabilities | `inputs/gev/gev_scenario_parameters.py` | `python inputs/gev/gev_scenario_parameters.py` |
-| expenditure-share fit (m, ε) | `inputs/calibration/85887NED.csv` | TODO `inputs/calibration/fit_expenditure.py` |
-| calibration bands (NHG foreclosure rate, BKR distress) | `inputs/calibration/targets/` | `python inputs/calibration/targets/build_calibration_targets.py` |
+| flood-severity series (2,500 months per scenario) | `preparation/gev/gev_config_static_2500.csv` | reference file used for every simulation in the paper (TODO: generating script) |
+| GEV scenario parameters and tier probabilities | `preparation/gev/gev_scenario_parameters.py` | `python preparation/gev/gev_scenario_parameters.py` |
+| CBS tables 85887NED (income deciles) and 80590NED (unemployment) | `preparation/calibration/cbs/<table>_<pull date>.csv` | `python preparation/calibration/download_cbs.py` |
+| baseline m, ε (with s.e.), exp_lb, η (SI, Baseline parametrisation) | `preparation/calibration/baseline_parameters.csv` | `python preparation/calibration/baseline_parameters.py` |
+| calibration bands (NHG foreclosure rate, BKR distress) | `preparation/calibration/targets/` | `python preparation/calibration/targets/build_calibration_targets.py` |
