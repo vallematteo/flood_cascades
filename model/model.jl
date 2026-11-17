@@ -30,6 +30,9 @@ using CSV, DataFrames, Parquet2
 include("utils.jl")
 include("agents.jl")
 
+# The fitted distribution of initial funds relative to the loan (zeta) is rescaled by this factor.
+const ZETA_SCALE = 0.015
+
 # ─── Burr Type III sampling via the inverse CDF
 
 """
@@ -65,36 +68,6 @@ end
 ModelDataCollector() = ModelDataCollector(
     Float64[], Int[], Int[], Float64[], Int[], Int[],
     Float64[], Int[], Float64[]
-)
-
-mutable struct AgentDataCollector
-    step::Vector{Int}
-    unique_id::Vector{Int}
-    score::Vector{Float64}
-    s_d::Vector{Int}
-    s_e::Vector{Int}
-    x::Vector{Int}
-    y::Vector{Int}
-    t::Vector{Int}
-    income::Vector{Float64}
-    w::Vector{Float64}
-    ltv::Vector{Float64}
-    sp::Vector{Float64}
-    pti::Vector{Float64}
-    v::Vector{Float64}
-    c::Vector{Float64}
-    delta_p::Vector{Float64}
-    s_i::Vector{Float64}
-    tau::Vector{Int}
-    p::Vector{Float64}
-    psi::Vector{Float64}
-    p_wtp::Vector{Float64}
-    u::Vector{Float64}
-end
-AgentDataCollector() = AgentDataCollector(
-    Int[], Int[], Float64[], Int[], Int[], Int[], Int[], Int[],
-    Float64[], Float64[], Float64[], Float64[], Float64[], Float64[],
-    Float64[], Float64[], Float64[], Int[], Float64[], Float64[], Float64[], Float64[]
 )
 
 """
@@ -168,18 +141,15 @@ mutable struct ModelProps
     acpt_score::Float64        # minimum scorecard value for admission
     settings::Int              # flood scenario, 0 = no floods
     add_agent_ctrl::Bool       # admit new households every month
-    collect_agent_data::Bool   # record every household every month (large); otherwise final wealth statistics only
     rho::Float64               # households per unit of housing density
     save_path::String
     tot_step::Int
     beta1::Float64
     beta2::Float64
     beta3::Float64
-    lambda_sen::Float64        # monthly seniority increment while employed
     exp_lb::Float64            # subsistence floor of non-housing expenditure
     eta::Float64               # baseline unemployment rate
     vartheta::Float64          # flood-induced unemployment
-    g::Float64                 # cap on monthly income growth
     alpha_param::Float64       # seniority cap (alpha)
     m_param::Float64           # expenditure-share intercept (m)
     varepsilon::Float64        # expenditure-share decay with income
@@ -211,24 +181,16 @@ mutable struct ModelProps
     num_created::Int
     num_joined::Int
     num_revival_current::Int   # forborne households this step (reset each step)
-    arrears_threshold::Int     # months below the financial threshold before financial default (0 = immediate)
-    revival_all::Bool          # true: every defaulter can be forborne; false: strategic defaulters only
-    revival_lag::Int           # minimum steps in default before forbearance (when revival_all is false)
     num_revival_financial_current::Int   # forborne financial defaulters this step
     num_revival_strategic_current::Int   # forborne strategic defaulters this step
-    up_psi::Float64            # psi ~ Uniform(0, up_psi)
-    psi1_time_dependent::Bool  # redraw psi_1 (strategic threshold) every month; psi_2 (employment) stays fixed
-    zeta_scale::Float64        # scales the drawn ratio of initial funds to loan size
     save_data_enabled::Bool    # write the Parquet output at the end of the run
     # foreclosure spillover: c = v (1 - lambda D_t) (1 - delta)^n_kappa
     lambda::Float64            # share of house value lost to a flood at D = 1
     delta::Float64             # value discount per foreclosure within kappa in month t-1
-    rho_mem::Float64           # monthly memory of the foreclosure count (0 = only last month's foreclosures)
-    F_grid::Matrix{Float64}    # weighted foreclosure count per cell, F = rho_mem * F + foreclosures of t-1
+    fcl_grid::Matrix{Float64}  # foreclosures of month t-1 per cell
     fcl_last_tick::Vector{Tuple{Int,Int}}   # (x, y) of this step's foreclosures, consumed next step
     # data collectors
     model_data::ModelDataCollector
-    agent_data::AgentDataCollector
     failures_data::FailureDataCollector
     distress_data::DistressDataCollector
 end
@@ -248,17 +210,14 @@ function build_model_properties(;
         beta1::Float64,
         beta2::Float64,
         beta3::Float64,
-        lambda_sen::Float64,
         exp_lb::Float64,
         eta::Float64,
         vartheta::Float64,
-        g::Float64,
         alpha::Float64,
         m::Float64,
         varepsilon::Float64,
         s_ub::Float64,
         N_nj::Int,
-        collect_agent_data::Bool = true,
         file_suffix::String = "",
         density_map::Matrix{Float64},
         m_fgrote::Matrix{Float64},
@@ -266,16 +225,9 @@ function build_model_properties(;
         m_fklein::Matrix{Float64},
         m_feklein::Matrix{Float64},
         gev_list::Vector{Float64},
-        arrears_threshold::Int = 0,
-        revival_all::Bool = false,
-        revival_lag::Int = 0,
-        up_psi::Float64 = 0.5,
-        psi1_time_dependent::Bool = false,
-        zeta_scale::Float64 = 1.0,
         save_data_enabled::Bool = true,
         lambda::Float64,
         delta::Float64,
-        rho_mem::Float64 = 0.0,
     )
     kappa >= 0 || throw(ArgumentError("kappa must be nonnegative"))
 
@@ -286,9 +238,9 @@ function build_model_properties(;
     ]
 
     return ModelProps(
-        run_id, kappa, acpt_score, settings, add_agents, collect_agent_data, rho, save_path,
-        tot_step, beta1, beta2, beta3, lambda_sen, exp_lb,
-        eta, vartheta, g, alpha, m, varepsilon, s_ub,
+        run_id, kappa, acpt_score, settings, add_agents, rho, save_path,
+        tot_step, beta1, beta2, beta3, exp_lb,
+        eta, vartheta, alpha, m, varepsilon, s_ub,
         N_nj, file_suffix, 6000,   # max_agents
         # maps
         density_map, m_fgrote, m_fmiddel, m_fklein, m_feklein,
@@ -303,19 +255,12 @@ function build_model_properties(;
         0.0,       # acceptance_rate
         0, 0,      # num_created, num_joined
         0,         # num_revival_current
-        arrears_threshold,
-        revival_all,
-        revival_lag,
         0, 0,      # num_revival_financial_current, num_revival_strategic_current
-        up_psi,
-        psi1_time_dependent,
-        zeta_scale,
         save_data_enabled,
-        lambda, delta, rho_mem,
+        lambda, delta,
         zeros(size(density_map)), Tuple{Int,Int}[],
         # data collectors
         ModelDataCollector(),
-        AgentDataCollector(),
         FailureDataCollector(),
         DistressDataCollector(),
     )
@@ -389,7 +334,7 @@ function populate_agents!(model)
     ltv_arr    = abs.(rand(rng, Normal(0.57, 0.1), N))
     income_arr = rand_burr_vec(rng, 3.30, 0.45, -12.76, 3101.46, N)
     sen_arr    = rand(rng, Beta(0.88, 2.79), N) .* 106.34 .+ 1.0
-    zeta_arr   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, N) .* props.zeta_scale
+    zeta_arr   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, N) .* ZETA_SCALE
     s_i_arr    = calc_share_expenses(income_arr, props.m_param, props.varepsilon, props.s_ub)
     living_arr = s_i_arr .* income_arr
     sp_arr     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, N)
@@ -464,9 +409,6 @@ function model_step!(model)
     # data collection skips the first 100 warm-up steps
     if step >= 100
         collect_model_data!(model)
-        if props.collect_agent_data
-            collect_agent_data!(model)
-        end
     end
 
     if step % 50 == 0
@@ -519,10 +461,8 @@ end
 
 Damage phase, run for every household before any household steps.
 
-1. F_grid decays by rho_mem and adds last step's foreclosures, so
-   F_t = sum_{k>=1} rho^(k-1) X_{t-k}, kept in one grid.
-2. n_kappa_i = radius(F), the weighted count of foreclosures within kappa of i
-   (radius_sum is linear, so decaying the cell grid decays the disk sums).
+1. fcl_grid holds last step's foreclosures per cell.
+2. n_kappa_i = radius(fcl_grid), the number of last step's foreclosures within kappa of i.
 3. c0_i = v_i (1 - lambda D_t), the collateral without the discount, and
    c_i = c0_i (1 - delta)^n_kappa_i (`update_damage!`).
 4. U_i = radius(c) / radius(v) and U0_i = radius(c0) / radius(v), as in `neighbor_utility`.
@@ -533,22 +473,22 @@ function cascade_phase!(model)
     props = abmproperties(model)
     k = props.kappa
 
-    props.F_grid .*= props.rho_mem
+    props.fcl_grid .= 0.0
     for (x, y) in props.fcl_last_tick
-        props.F_grid[y, x] += 1.0
+        props.fcl_grid[y, x] += 1.0
     end
     empty!(props.fcl_last_tick)
 
-    n_cell = zeros(size(props.F_grid))
+    n_cell = zeros(size(props.fcl_grid))
     for a in allagents(model)
         n_cell[a.y, a.x] += 1.0
     end
     box_n = radius_sum(n_cell, k)
-    box_F = radius_sum(props.F_grid, k)
+    box_F = radius_sum(props.fcl_grid, k)
 
-    c_cell  = zeros(size(props.F_grid))
-    c0_cell = zeros(size(props.F_grid))
-    v_cell  = zeros(size(props.F_grid))
+    c_cell  = zeros(size(props.fcl_grid))
+    c0_cell = zeros(size(props.fcl_grid))
+    v_cell  = zeros(size(props.fcl_grid))
     for a in allagents(model)
         a.nbox = Int(box_n[a.y, a.x])
         a.n_kappa = box_F[a.y, a.x]
@@ -614,7 +554,7 @@ function add_agents!(model)
 
     income_v = rand_burr_vec(rng, 3.30, 0.45, -12.76, 3101.46, num_created)
     sen_v    = rand(rng, Beta(0.88, 2.79), num_created) .* 106.34 .+ 1.0
-    zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* props.zeta_scale
+    zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* ZETA_SCALE
     ltv_v    = abs.(rand(rng, Normal(0.57, 0.1), num_created))
     sp_v     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, num_created)
     v_v      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, num_created) .* 1000.0  # thousands of euros to euros
@@ -711,37 +651,6 @@ function collect_model_data!(model)
     push!(mc.acceptance_rate, props.acceptance_rate)
 end
 
-function collect_agent_data!(model)
-    props = abmproperties(model)
-    ac = props.agent_data
-    for id in allids(model)
-        a = model[id]
-        push!(ac.step, props.current_step)
-        push!(ac.unique_id, a.id)
-        push!(ac.score, a.score)
-        push!(ac.s_d, a.s_d)
-        push!(ac.s_e, a.s_e)
-        push!(ac.x, a.x)
-        push!(ac.y, a.y)
-        push!(ac.t, a.t)
-        push!(ac.income, a.income)
-        push!(ac.w, a.w)
-        push!(ac.ltv, a.ltv)
-        push!(ac.sp, a.sp)
-        push!(ac.pti, a.pti)
-        push!(ac.v, a.v)
-        push!(ac.c, a.c)
-        push!(ac.delta_p, a.delta_p)
-        push!(ac.s_i, a.s_i)
-        push!(ac.tau, a.tau)
-        push!(ac.p, a.p)
-        push!(ac.psi, a.psi_1)
-        push!(ac.p_wtp, a.p_wtp)
-        push!(ac.u, a.u)
-    end
-end
-
-
 # ─── Save data
 
 function collector_to_dataframe(c)
@@ -753,80 +662,12 @@ function collector_to_dataframe(c)
 end
 
 """
-    optimize_dtypes(df) -> DataFrame
-
-Downcast numeric columns to the smallest type that preserves the data range.
-- Float64 → Float32  (Parquet does not support Float16 natively)
-- Int64   → Int8 / Int16 / Int32 or UInt8 / UInt16 / UInt32
-"""
-function optimize_dtypes(df::DataFrame)
-    result = copy(df)
-    for col in names(result)
-        v = result[!, col]
-        T = eltype(v)
-        isempty(v) && continue
-        if T == Float64
-            result[!, col] = Float32.(v)
-        elseif T == Int64
-            mn, mx = extrema(v)
-            if mn >= 0
-                if     mx <= typemax(UInt8);  result[!, col] = UInt8.(v)
-                elseif mx <= typemax(UInt16); result[!, col] = UInt16.(v)
-                elseif mx <= typemax(UInt32); result[!, col] = UInt32.(v)
-                end
-            else
-                if     typemin(Int8)  <= mn && mx <= typemax(Int8);  result[!, col] = Int8.(v)
-                elseif typemin(Int16) <= mn && mx <= typemax(Int16); result[!, col] = Int16.(v)
-                elseif typemin(Int32) <= mn && mx <= typemax(Int32); result[!, col] = Int32.(v)
-                end
-            end
-        end
-    end
-    return result
-end
-
-"""
     zstd_codec(df) -> Dict{String, Symbol}
 
 Per-column zstd compression for Parquet2.writefile.
 """
 function zstd_codec(df::DataFrame)
     return Dict(col => :zstd for col in names(df))
-end
-
-"""
-    separate_static_columns(agent_df) -> DataFrame
-
-Move the columns that are constant per household (`x`, `y`, `sp`, `v`) next to the
-identifiers and add `first_step`, the step at which each household first appears.
-Long runs of a repeated value compress to almost nothing in Parquet.
-"""
-function separate_static_columns(agent_df::DataFrame)
-    static_cols = ["x", "y", "sp", "v"]
-
-    # first row of each household; households step in ID order, i.e. in order of creation
-    seen       = Set{Int}()
-    first_idxs = Int[]
-    for (i, uid) in enumerate(agent_df.unique_id)
-        if uid ∉ seen
-            push!(seen, uid)
-            push!(first_idxs, i)
-        end
-    end
-
-    # static table: one row per household
-    static_df            = agent_df[first_idxs, vcat(["unique_id"], static_cols)]
-    static_df.first_step = agent_df.step[first_idxs]
-
-    # time-varying table: all other columns
-    time_df = select(agent_df, Not(static_cols))
-
-    # a left join keeps the row order of time_df
-    combined = leftjoin(time_df, static_df, on = :unique_id)
-
-    fixed = vcat(["step", "unique_id", "first_step"], static_cols)
-    rest  = [c for c in names(combined) if c ∉ fixed]
-    return combined[:, vcat(fixed, rest)]
 end
 
 # Sort vals in place, then return (gini, median).
@@ -855,43 +696,32 @@ function save_data(model)
         compression_codec = zstd_codec(model_df),
     )
 
-    # ── household data, or final wealth statistics ──
-    if props.collect_agent_data
-        raw_agent_df = collector_to_dataframe(props.agent_data)
-        agent_df     = optimize_dtypes(separate_static_columns(raw_agent_df))
-        Parquet2.writefile(
-            joinpath(props.save_path, "agent_data$(suffix).parquet"),
-            agent_df;
-            compression_codec = zstd_codec(agent_df),
-        )
-    else
-        # wealth distribution of the households alive at the final step
-        n_ag = props.tot_num_agents_active
-        w_vals  = Vector{Float64}(undef, n_ag)
-        wc_vals = Vector{Float64}(undef, n_ag)
-        i = 1
-        for id in allids(model)
-            a = model[id]
-            w_vals[i]  = a.w
-            wc_vals[i] = a.w + a.c
-            i += 1
-        end
-        gini_w,  median_w  = gini_and_median!(w_vals)
-        gini_wc, median_wc = gini_and_median!(wc_vals)
-        final_df = DataFrame(
-            run_id    = [props.run_id],
-            setting   = [props.settings],
-            gini_w    = [gini_w],
-            median_w  = [median_w],
-            gini_wc   = [gini_wc],
-            median_wc = [median_wc],
-        )
-        Parquet2.writefile(
-            joinpath(props.save_path, "agent_data$(suffix).parquet"),
-            final_df;
-            compression_codec = zstd_codec(final_df),
-        )
+    # ── wealth distribution of the households alive at the final step ──
+    n_ag = props.tot_num_agents_active
+    w_vals  = Vector{Float64}(undef, n_ag)
+    wc_vals = Vector{Float64}(undef, n_ag)
+    i = 1
+    for id in allids(model)
+        a = model[id]
+        w_vals[i]  = a.w
+        wc_vals[i] = a.w + a.c
+        i += 1
     end
+    gini_w,  median_w  = gini_and_median!(w_vals)
+    gini_wc, median_wc = gini_and_median!(wc_vals)
+    final_df = DataFrame(
+        run_id    = [props.run_id],
+        setting   = [props.settings],
+        gini_w    = [gini_w],
+        median_w  = [median_w],
+        gini_wc   = [gini_wc],
+        median_wc = [median_wc],
+    )
+    Parquet2.writefile(
+        joinpath(props.save_path, "agent_data$(suffix).parquet"),
+        final_df;
+        compression_codec = zstd_codec(final_df),
+    )
 
     # ── distress data ──
     # Every trigger, i.e. every step at which s_d flipped 0 -> 1, whether or not the

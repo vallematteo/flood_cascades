@@ -2,7 +2,7 @@
     Household agent of the flood mortgage risk agent-based model.
 """
 
-using Agents, Distributions, DataStructures
+using Agents, Distributions
 
 @agent struct Household(GridAgent{2})
     # location (same as pos, kept for map indexing)
@@ -35,17 +35,13 @@ using Agents, Distributions, DataStructures
     v::Float64              # house value
     c::Float64              # collateral
     sp::Float64             # floor area of the property
-    v_arr::CircularBuffer{Int}   # default flags of the last 36 months
     delta_p::Float64        # flood loss of house value, lambda D v
-    psi_1::Float64          # strategic-default threshold (redrawn every month if psi1_time_dependent)
+    psi_1::Float64          # strategic-default threshold (redrawn every month)
     psi_2::Float64          # employment threshold (fixed at entry)
     default_reason::Int     # 1 = financial, -1 = strategic, 0 = forborne, 3 = none
     p_wtp::Float64          # willingness to pay
     s_i::Float64            # share of income spent on living expenses
-    score::Float64
     fin_threshold::Float64  # wealth left after living expenses
-    arrears::Int            # consecutive months below the financial threshold (arrears rule)
-    steps_defaulted::Int    # steps spent in default (revival_lag)
     # foreclosure spillover, set for every household in the damage phase (cascade_phase!)
     n_kappa::Float64        # foreclosures of t-1 within kappa
     nbox::Int               # households in the kappa-disk this month
@@ -63,15 +59,10 @@ function create_household(model, x::Int, y::Int,
                           fgrote, fmiddel, fklein, feklein,
                           zeta, income, sen, living_exp,
                           w, ltv, p, v, sp, n, l)
-    v_arr = CircularBuffer{Int}(36)
-    for _ in 1:36
-        push!(v_arr, 0)
-    end
-    # two independent draws: psi_1 sets the strategic-default threshold and may be
-    # redrawn every month; psi_2 sets the employment type and stays fixed
-    up = abmproperties(model).up_psi
-    psi_1_val = rand(abmrng(model), Uniform(0.0, up))
-    psi_2_val = rand(abmrng(model), Uniform(0.0, up))
+    # two independent draws: psi_1 sets the strategic-default threshold and is redrawn
+    # every month; psi_2 sets the employment type and stays fixed
+    psi_1_val = rand(abmrng(model), Uniform(0.0, 1.0))
+    psi_2_val = rand(abmrng(model), Uniform(0.0, 1.0))
     pti_val = p / income
 
     agent = add_agent!((x, y), Household, model;
@@ -101,17 +92,13 @@ function create_household(model, x::Int, y::Int,
         v = Float64(v),
         c = Float64(v),
         sp = Float64(sp),
-        v_arr = v_arr,
         delta_p = 0.0,
         psi_1 = psi_1_val,
         psi_2 = psi_2_val,
         default_reason = 3,
         p_wtp = 0.0,
         s_i = 0.0,
-        score = 210.0,
         fin_threshold = 0.0,
-        arrears = 0,
-        steps_defaulted = 0,
         n_kappa = 0.0,
         nbox = 1,
         c0 = Float64(v),
@@ -128,7 +115,7 @@ end
     agent_step!(agent, model)
 
 Monthly update of one household: strategic threshold, age, seniority, default and
-forbearance, expenditure and payment, wealth, income and employment, credit score.
+forbearance, expenditure and payment, wealth, income and employment.
 """
 function agent_step!(agent::Household, model)
     props = abmproperties(model)
@@ -136,18 +123,16 @@ function agent_step!(agent::Household, model)
     # redraw the strategic threshold at the top of the month, so the default trigger
     # and the forbearance check (update_s_d!) see the same value; psi_2 (employment)
     # is not redrawn, so unemployment spells persist
-    if props.psi1_time_dependent
-        agent.psi_1 = rand(abmrng(model), Uniform(0.0, props.up_psi))
-    end
+    agent.psi_1 = rand(abmrng(model), Uniform(0.0, 1.0))
 
     agent.t += 1
 
     # D, c and u were set for every household by cascade_phase! before any household steps
 
-    # seniority
-    agent.sen = min(props.alpha_param,
-                    agent.s_e * props.lambda_sen * (agent.sen + 1) +
-                    (1 - agent.s_e) * agent.sen)
+    # seniority grows by one month while employed, up to alpha, and is frozen otherwise
+    if agent.s_e == 1
+        agent.sen = min(props.alpha_param, agent.sen + 1)
+    end
 
     # unemployment duration
     agent.tau = agent.s_e == 1 ? 0 : (agent.tau + 1)
@@ -163,10 +148,6 @@ function agent_step!(agent::Household, model)
     # remaining installments
     agent.n -= (1 - agent.s_d)
 
-    # rolling default window
-    popfirst!(agent.v_arr)
-    push!(agent.v_arr, agent.s_d)
-
     # wealth and loan
     agent.w = agent.w + agent.income - agent.tot_expenditures
     agent.l = agent.n * agent.p
@@ -177,9 +158,6 @@ function agent_step!(agent::Household, model)
     # derived quantities
     agent.ltv = agent.l / agent.c
     agent.pti = agent.p / (agent.income + 0.01)
-
-    # credit score
-    compute_score!(agent)
 
     # Record every trigger (s_d flipped 0 -> 1 this month), whether the household was
     # forborne or forecloses. Recorded here, once ltv, pti and s_e are current, so the
@@ -250,23 +228,15 @@ function update_s_d!(agent::Household, model)
     agent.p_wtp0 = clamp(props.beta1 * agent.u0 - props.beta2 * wtp_fin / (props.beta3 + wtp_fin), 0.0, 1.0)
 
     # financial default: wealth after living expenses no longer covers the installment
-    # (with arrears_threshold > 0, only after that many consecutive months)
     if agent.s_d == 0 && agent.fin_threshold <= agent.p
-        agent.arrears += 1
-        if props.arrears_threshold == 0 || agent.arrears >= props.arrears_threshold
-            agent.s_d = 1
-            agent.default_reason = 1
-            agent.arrears = 0
-        end
-    else
-        agent.arrears = 0
+        agent.s_d = 1
+        agent.default_reason = 1
     end
 
     # strategic default
     if agent.s_d == 0 && agent.p_wtp < agent.psi_1
         agent.s_d = 1
         agent.default_reason = -1
-        agent.steps_defaulted = 0
     end
 
     # Every household enters the month with s_d == 0, so s_d == 1 here is a new trigger.
@@ -274,22 +244,8 @@ function update_s_d!(agent::Household, model)
     # default_reason and because ltv, pti and s_e are not yet current for this month.
     triggered_reason = agent.s_d == 1 ? agent.default_reason : 0
 
-    # steps in default
-    if agent.s_d == 1
-        agent.steps_defaulted += 1
-    else
-        agent.steps_defaulted = 0
-    end
-
-    # Forbearance: a defaulter is forborne when wtp > 1 - psi_1. With revival_all every
-    # defaulter is eligible; otherwise only strategic defaulters in default for more
-    # than revival_lag steps.
-    revival_eligible = props.revival_all ? agent.s_d == 1 : (
-        agent.s_d == 1 &&
-        agent.default_reason == -1 &&
-        agent.steps_defaulted > props.revival_lag
-    )
-    if revival_eligible && agent.p_wtp > (1 - agent.psi_1)
+    # forbearance: a defaulter of either channel is forborne when wtp > 1 - psi_1
+    if agent.s_d == 1 && agent.p_wtp > (1 - agent.psi_1)
         if agent.default_reason == 1
             props.num_revival_financial_current += 1
         elseif agent.default_reason == -1
@@ -297,7 +253,6 @@ function update_s_d!(agent::Household, model)
         end
         agent.s_d = 0
         agent.default_reason = 0
-        agent.steps_defaulted = 0
         props.num_revival_current += 1
     end
     return triggered_reason
@@ -309,9 +264,8 @@ function update_income!(agent::Household, model)
     update_s_e!(agent, props)
     new_s_e = agent.s_e
 
-    if new_s_e == 1 && old_s_e == 1
-        agent.income *= (1.0 + min(0.01 * (agent.sen / 12.0), props.g))
-    elseif new_s_e == 0 && old_s_e == 1
+    # income is constant while employed
+    if new_s_e == 0 && old_s_e == 1
         agent.income = min(0.7 * agent.income, 5000.0)
     elseif new_s_e == 0 && old_s_e == 0 && agent.tau > 12
         agent.income = 0.0
@@ -371,42 +325,4 @@ function neighbor_utility(agent::Household, model)
     u_val = tot_v != 0 ? tot_c / tot_v : 0.0
 
     return clamp(u_val, 0.0, 1.0)
-end
-
-function compute_score!(agent::Household)
-    score = 0.0
-    # ltv
-    if agent.ltv <= 0.4;       score += 20
-    elseif agent.ltv <= 0.7;   score += 14
-    elseif agent.ltv <= 0.9;   score += 7
-    end
-    # income
-    if agent.income <= 300;       score += 12
-    elseif agent.income <= 500;   score += 17
-    elseif agent.income <= 800;   score += 24
-    elseif agent.income <= 1700;  score += 34
-    else;                         score += 38
-    end
-    # seniority
-    if agent.sen <= 15;       score += 9
-    elseif agent.sen <= 47;   score += 14
-    else;                     score += 28
-    end
-    # initial funds / loan size
-    if agent.zeta <= 0.05;       score += 9
-    elseif agent.zeta <= 0.40;   score += 22
-    elseif agent.zeta <= 0.50;   score += 24
-    else;                        score += 33
-    end
-    # pti
-    if agent.pti <= 0.40
-        score += 20
-    else
-        score += 9
-    end
-    # payment history over the last 36 months
-    ratio_arr = sum(agent.v_arr) / 36.0
-    score += 100.0 * (1.0 - ratio_arr)
-
-    agent.score = score
 end
