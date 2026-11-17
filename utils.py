@@ -494,3 +494,33 @@ def pawn_figure(Y, name):
     _index_axes(ax, "PAWN Index (median)", exp_lb=r"\mathit{exp}_{lb}")
     fig.tight_layout()
     save_figure(fig, name, dpi=300)
+
+
+# ─── Foreclosure timing
+
+TIMING_CHANNELS = {1: ("financial", "#0b7285"), -1: ("strategic", "#b2182b")}
+
+
+def load_timing(design):
+    """One row per post-warm-up foreclosure of the foreclosure-timing design 'gap' or 'beta3'
+    (data/foreclosure_timing/<design>_foreclosures.csv.gz), with the parameters of its run
+    (<design>_runs.csv) and gap = beta1 - beta2."""
+    fcl = read(f"foreclosure_timing/{design}_foreclosures.csv.gz")
+    runs = read(f"foreclosure_timing/{design}_runs.csv")
+    for k, v in CALIBRATED.items():
+        assert np.allclose(runs[k], v), k
+    d = fcl.merge(runs[["run_id", "setting", "seed", "beta1", "beta2", "beta3", "lambda", "delta", "warmup"]],
+                  on="run_id", how="left", validate="many_to_one")
+    d["gap"] = (d.beta1 - d.beta2).round(2)
+    return d
+
+
+def style_density_axes(ax, xlabel, xmax):
+    ax.set_xlabel(xlabel, fontsize=FS, fontweight="bold")
+    ax.set_ylabel("Density", fontsize=FS, fontweight="bold")
+    ax.set_xlim(0, xmax)
+    ax.tick_params(labelsize=FS - 5)
+    ax.grid(axis="y", alpha=0.3, linestyle="--")
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
