@@ -31,14 +31,17 @@ to the files in `data/`.
 
 | Experiment | Purpose | Runs | Where | Cost |
 |---|---|---|---|---|
-| `abc_calibration` | calibration at the no-flood scenario (rejection ABC) | 10,010 | SLURM cluster | TODO core-hours |
-| `global_sa` | global sensitivity analysis (Saltelli design, Sobol' and PAWN indices) | 166,400 | SLURM cluster | TODO core-hours |
-| `cascades_rnet` | foreclosure cascades and the net reproduction number, by flood scenario and spillover intensity | 65,520 | SLURM cluster | TODO core-hours |
-| `foreclosure_timing` | age and distress history at foreclosure | 1,050 | laptop | about 15 core-hours (8 s per run) |
+| `abc_calibration` | calibration at the no-flood scenario (rejection ABC) | 10,010 | SLURM cluster | 35 core-hours |
+| `global_sa` | global sensitivity analysis (Saltelli design, Sobol' and PAWN indices) | 166,400 | SLURM cluster | 473 core-hours, plus 90 for the reduction |
+| `cascades_rnet` | foreclosure cascades and the net reproduction number, by flood scenario and spillover intensity | 65,520 | SLURM cluster | 239 core-hours, plus 2 for the reduction |
+| `foreclosure_timing` | age and distress history at foreclosure | 1,050 | laptop | 2.4 core-hours (8 to 9 s per run) |
 | `zeta_scale` | scale of initial liquid funds: admission, population and no-flood rates | 505 | laptop | about 1 core-hour (7 min on 8 cores) |
 
-The raw output of the cluster experiments is not included (TODO: size). Each experiment folder
-explains how to regenerate it, and the reduced data it produces is included in `data/`.
+The raw output of the simulations is not included: about 1.9 GB for the cascade experiment
+(measured), and roughly 2 to 4 MB per run in Parquet for the sensitivity analysis and the
+calibration (estimated from check runs; the size grows with the number of households and
+distress events), of the order of 0.5 TB and 20 GB. Each experiment folder explains how to
+regenerate it, and the reduced data it produces is included in `data/`.
 
 ## Computing resources
 
@@ -57,20 +60,26 @@ about 1.2 GB: 1.10 GB for a single run, 1.15 GB for 8 consecutive runs of the he
 runtime and compiled code included. A node therefore needs about 1.2 GB per worker plus a few
 GB for the main process: 192 workers fit in about 240 GB, and any machine with at least 1.5 GB
 per core can run one worker per core. The runner of the sensitivity analysis and the
-calibration, which also writes Parquet output, peaks at 0.91 GB per worker (110 runs).
+calibration, which also writes Parquet output, peaks at 0.91 GB per worker (110 runs). On the
+cluster, the whole job (192 workers and the main process) peaked at 148 GiB for the sensitivity
+analysis and the calibration and at 154 GiB for the cascade experiment (SLURM `MaxRSS`), about
+0.8 GB per worker.
 
 **Time.** One run takes 8 to 9 s on one core, on a Genoa node and on an Apple M3 Pro alike.
 
-| Experiment | SLURM job | Runs | Node time | Core-hours (192 cores x node time) |
-|---|---|---|---|---|
-| `global_sa` | array of 5 tasks, one node each, 2026-10-28 | 166,400 | about 30 min per task | TODO (`sacct`) |
-| `abc_calibration` | one node, 2026-11-04 | 10,010 | TODO | TODO |
-| `cascades_rnet` | one node, 2026-11-10 | 65,520 | about 1 h (simulation 55 min: 13 cells of 5,040 runs, 250 to 280 s each, mean 8.7 s per run) plus Julia start-up | TODO (`sacct`) |
-| `foreclosure_timing` | laptop, 10 cores, 2026-11-10 | 1,050 | TODO | |
-| `zeta_scale` | laptop, 8 workers, 2026-11-17 | 505 | 436 s | about 1 |
+From SLURM accounting (`sacct`); core-hours are allocated cores x elapsed time.
 
-The cascade timings are from the log of an identical design run on 2026-11-05 (job on node
-`fcn98`, 13 chunks of 5,040 runs, 3,315 s of simulation in all).
+| Experiment | SLURM job | Runs | Elapsed | Core-hours |
+|---|---|---|---|---|
+| `global_sa`, simulation | array of 5 tasks, one node (192 cores) each, 2026-10-29 | 166,400 | 28 to 31 min per task | 473 |
+| `global_sa`, reduction | one node (192 cores), 2026-10-29 | | 28 min | 90 |
+| `abc_calibration`, simulation and reduction | one node (192 cores), 2026-11-04 | 10,010 | 11 min | 35 |
+| `cascades_rnet`, simulation | one node (192 cores), 2026-11-10 | 65,520 | 75 min | 239 |
+| `cascades_rnet`, reduction and cascade trees | 24 and 72 cores, 2026-11-10 | | 1 and 2 min | 2 |
+| `foreclosure_timing` | laptop, 10 workers, 2026-11-10 | 1,050 | about 15 min | 2.4 (sum of run times) |
+| `zeta_scale` | laptop, 8 workers, 2026-11-17 | 505 | 7 min | about 1 |
+
+Snellius ran Red Hat Enterprise Linux 9.8 (kernel 5.14, x86-64), Julia 1.10.4.
 
 ## Main text
 

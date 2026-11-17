@@ -27,7 +27,7 @@ The package can be used at three levels:
 | Level | What it reproduces | Where it runs | Time |
 |---|---|---|---|
 | A. Paper from data | every figure, table and number in the paper and SI, from the reduced data in `data/` | a laptop | about 12 minutes |
-| B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | minutes per experiment (see [REPRODUCE.md](REPRODUCE.md)) |
+| B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | 1 to 30 minutes per experiment on a cluster node (see [REPRODUCE.md](REPRODUCE.md)) |
 | C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (calibration, sensitivity analysis, cascades) | see [REPRODUCE.md](REPRODUCE.md) |
 
 ## Repository contents
@@ -65,7 +65,7 @@ s on one core, so any machine with at least 1.5 GB per core can run them; see
 Tested on:
 
 - macOS 27.2 (Apple M3 Pro)
-- Snellius (Linux, x86-64): TODO operating system version
+- Snellius: Red Hat Enterprise Linux 9.8 (x86-64)
 
 Dependencies (exact versions are pinned in `Manifest.toml` for Julia and in `pyproject.toml` / `uv.lock` for Python):
 
