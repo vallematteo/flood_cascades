@@ -65,7 +65,7 @@ explains how to regenerate it, and the reduced data it produces is included in `
 
 | Input | File | Produced by |
 |---|---|---|
-| flood-severity series (2,500 months per scenario) | `preparation/gev/gev_config_static_2500.csv` | reference file used for every simulation in the paper (TODO: generating script) |
+| flood-severity series (2,500 months per scenario) | `preparation/gev/gev_config_static_2500.csv` | fixed reference input of every simulation in the paper; new seeded series: `uv run python preparation/gev/generate_gev_series.py` |
 | GEV scenario parameters and tier probabilities | `preparation/gev/gev_scenario_parameters.py` | `python preparation/gev/gev_scenario_parameters.py` |
 | CBS tables 85887NED (income deciles) and 80590NED (unemployment) | `preparation/initialization/cbs/<table>_<pull date>.csv` | `python preparation/initialization/download_cbs.py` |
 | baseline m, ε (with s.e.), exp_lb, η (SI, Baseline parametrisation) | `preparation/initialization/baseline_parameters.csv` | `python preparation/initialization/baseline_parameters.py` |
