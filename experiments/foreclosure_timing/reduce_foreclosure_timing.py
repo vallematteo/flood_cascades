@@ -1,14 +1,14 @@
 """Reduce the output of the foreclosure-timing runs to the variables the paper uses.
 
-The runner writes two tables per design:
-    <prefix>_runs.csv           one row per run (parameters and run totals)
-    <prefix>_foreclosures.csv   one row per foreclosure, with the run parameters repeated
+The runner (run.jl) writes two tables per design:
+    <design>_runs.csv           one row per run (parameters and run totals)
+    <design>_foreclosures.csv   one row per foreclosure, with the run parameters repeated
 This script keeps the run parameters only in the runs table (joined by run_id) and, per
 foreclosure, only the variables used by Fig. 5, SI Figs 11 and 12 and the quoted numbers.
 
 Designs: gap (beta1 - beta2 from 0.45 to 0.7) and beta3 (beta3 from 0.5 to 2).
 
-Run:    python experiments/foreclosure_timing/reduce_foreclosure_timing.py --runner-dir <runner output folder>
+Run:    python experiments/foreclosure_timing/reduce_foreclosure_timing.py [--runner-dir output/foreclosure_timing/raw]
 Writes: data/foreclosure_timing/{gap,beta3}_runs.csv
         data/foreclosure_timing/{gap,beta3}_foreclosures.csv.gz
 """
@@ -21,7 +21,7 @@ GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content giv
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "data", "foreclosure_timing")
 
-DESIGNS = {"gap": "fcltime_star_gap", "beta3": "fcltime_star_beta3"}
+DESIGNS = ["gap", "beta3"]
 
 RUN_COLUMNS = ["run_id", "setting", "seed", "beta1", "beta2", "beta3", "lambda", "delta",
                "eta", "m", "varepsilon", "n_trig_fin", "n_trig_strat", "n_fcl_fin",
@@ -41,9 +41,9 @@ FORECLOSURE_COLUMNS = [
 ]
 
 
-def reduce_design(runner_dir, prefix):
-    runs = pd.read_csv(os.path.join(runner_dir, f"{prefix}_runs.csv"))
-    fcl = pd.read_csv(os.path.join(runner_dir, f"{prefix}_foreclosures.csv"))
+def reduce_design(runner_dir, design):
+    runs = pd.read_csv(os.path.join(runner_dir, f"{design}_runs.csv"), float_precision="round_trip")
+    fcl = pd.read_csv(os.path.join(runner_dir, f"{design}_foreclosures.csv"), float_precision="round_trip")
     assert fcl.warmup.nunique() == 1, "one warm-up per design"
     runs = runs[runs.success].assign(warmup=fcl.warmup.iloc[0])
     return runs[RUN_COLUMNS], fcl[FORECLOSURE_COLUMNS]
@@ -51,11 +51,11 @@ def reduce_design(runner_dir, prefix):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runner-dir", required=True)
+    ap.add_argument("--runner-dir", default=os.path.join(ROOT, "output", "foreclosure_timing", "raw"))
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
-    for name, prefix in DESIGNS.items():
-        runs, fcl = reduce_design(a.runner_dir, prefix)
+    for name in DESIGNS:
+        runs, fcl = reduce_design(a.runner_dir, name)
         runs.to_csv(os.path.join(OUT, f"{name}_runs.csv"), index=False)
         fcl.to_csv(os.path.join(OUT, f"{name}_foreclosures.csv.gz"), index=False, compression=GZIP)
         print(f"{name}: {len(runs)} runs, {len(fcl):,} foreclosures")
