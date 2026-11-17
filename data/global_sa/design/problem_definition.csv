@@ -1,0 +1,12 @@
+parameter,lower_bound,upper_bound
+kappa,1.0,25.0
+beta1,0.01,1.0
+beta2,0.01,1.0
+beta3,0.25,3.0
+lambda,0.0,0.5
+delta,0.05,0.5
+eta,0.03,0.13
+vartheta,0.03,0.13
+m,4.34,8.06
+varepsilon,0.0013859999999999999,0.002574
+exp_lb,760.9,1413.1000000000001
