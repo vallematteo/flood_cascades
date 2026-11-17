@@ -17,6 +17,7 @@ import os
 
 import pandas as pd
 
+GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "data", "foreclosure_timing")
 
@@ -56,7 +57,7 @@ def main():
     for name, prefix in DESIGNS.items():
         runs, fcl = reduce_design(a.runner_dir, prefix)
         runs.to_csv(os.path.join(OUT, f"{name}_runs.csv"), index=False)
-        fcl.to_csv(os.path.join(OUT, f"{name}_foreclosures.csv.gz"), index=False)
+        fcl.to_csv(os.path.join(OUT, f"{name}_foreclosures.csv.gz"), index=False, compression=GZIP)
         print(f"{name}: {len(runs)} runs, {len(fcl):,} foreclosures")
 
 

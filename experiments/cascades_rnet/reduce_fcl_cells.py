@@ -18,6 +18,7 @@ import os
 import numpy as np
 import pandas as pd
 
+GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "data", "cascades_rnet", "fcl_cells.csv.gz")
 
@@ -48,7 +49,7 @@ def main():
     runs = map_runs(a.raw_dir)
     cells = count_cells(a.raw_dir, runs)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    cells.to_csv(OUT, index=False)
+    cells.to_csv(OUT, index=False, compression=GZIP)
     print(f"{len(runs)} runs, {cells.n_fcl.sum():,} foreclosures in {len(cells):,} (run, cell) rows -> {OUT}")
 
 

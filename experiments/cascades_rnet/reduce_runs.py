@@ -25,6 +25,7 @@ import os
 import numpy as np
 import pandas as pd
 
+GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "data", "cascades_rnet")
 CELL = ["setting", "lambda", "kappa", "beta2", "vartheta", "delta"]
@@ -84,9 +85,9 @@ def main():
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     runs = read_runs(a.raw_dir)
-    runs.to_csv(os.path.join(OUT, "runs_all.csv.gz"), index=False)
+    runs.to_csv(os.path.join(OUT, "runs_all.csv.gz"), index=False, compression=GZIP)
     paired = pair(runs)
-    paired.to_csv(os.path.join(OUT, "paired_seed.csv.gz"), index=False)
+    paired.to_csv(os.path.join(OUT, "paired_seed.csv.gz"), index=False, compression=GZIP)
     print(f"{len(runs):,} runs -> runs_all.csv.gz, paired_seed.csv.gz in {OUT}")
 
 

@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "data", "cascades_rnet")
 CELL = ["setting", "lambda", "kappa", "beta2", "vartheta", "delta"]
@@ -158,9 +159,9 @@ def main():
             print(f"{os.path.basename(path)}: {len(jobs)} runs", flush=True)
 
     sizes = pd.DataFrame([h for r in rows for h in r.pop("_hist")], columns=["run_id", "method", "size", "count"])
-    sizes.to_csv(os.path.join(OUT, "sizes_by_run.csv.gz"), index=False)
+    sizes.to_csv(os.path.join(OUT, "sizes_by_run.csv.gz"), index=False, compression=GZIP)
     trees = pd.DataFrame(rows)
-    trees.to_csv(os.path.join(OUT, "trees_by_run.csv.gz"), index=False)
+    trees.to_csv(os.path.join(OUT, "trees_by_run.csv.gz"), index=False, compression=GZIP)
     print(f"orphan children (no step t-1 foreclosure within 2 kappa): {int(trees.orphans.sum())} "
           f"of {int(trees.n_attr.sum())} attributed")
 
