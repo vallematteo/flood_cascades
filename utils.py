@@ -524,3 +524,58 @@ def style_density_axes(ax, xlabel, xmax):
     ax.set_axisbelow(True)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+
+
+def sparks_and_sweeps(sizes_all, meta, peaks, groups=None):
+    """Per method, scenario group and delta: cascades per run, large cascades per run and per
+    1,000 cascades. A large cascade is one of size >= the valley of its cell (peaks of size_density)."""
+    groups = groups or CASCADE_GROUPS
+    s = sizes_all.merge(meta[["run_id", "setting", "delta"]], on="run_id")
+    s = pd.concat([s[s.setting.isin(v)].assign(group=k) for k, v in groups.items()])
+    s = s.merge(peaks[["method", "group", "delta", "valley"]], on=["method", "group", "delta"], how="left")
+    s["sweep"] = (s["count"] * ((s["size"] >= s.valley) & s.valley.notna())).astype(float)
+    g = s.groupby(["method", "group", "delta"])
+    out = pd.DataFrame({"runs": g.run_id.nunique(), "cascades": g["count"].sum(), "sweeps": g.sweep.sum()}).reset_index()
+    out["sparks_per_run"] = out.cascades / out.runs
+    out["sweeps_per_run"] = out.sweeps / out.runs
+    out["sweeps_per_1000_sparks"] = 1000 * out.sweeps / out.cascades
+    return out
+
+
+def load_attribution_free():
+    """Attribution-free clusters (data/cascades_rnet/af_sizes_by_run.csv: run_id, size, count) and
+    their runs (af_runs.csv: kappa = 10, beta1 - beta2 = 0.5, vartheta = 0.05)."""
+    return read("cascades_rnet/af_sizes_by_run.csv"), read("cascades_rnet/af_runs.csv")
+
+
+def compare_methods(n_boot=2000, seed=1):
+    """Share of all foreclosures in large cascades (size >= the valley of the cell, each method
+    with its own valley), pooled over the runs of a cell, for weighted trees (tree), connected
+    components (comp) and attribution-free clusters (af), with a 95% interval from resampling
+    seeds; plus the peak of the large-cascade mode."""
+    af_sizes, af_runs = load_attribution_free()
+    meta = af_runs[["run_id", "setting", "lambda", "delta", "seed"]]
+    _, _, af_peaks = size_density(af_sizes, meta)
+    sizes, tree_meta = load_cascade_sizes()
+    _, _, tree_peaks = size_density(sizes, tree_meta)
+    modes = pd.concat([tree_peaks, af_peaks])
+    att = read("cascades_rnet/sizes_by_run.csv.gz")
+    att = att[att.run_id.isin(meta.run_id)]
+    sizes_all = pd.concat([att[["run_id", "method", "size", "count"]], af_sizes[["run_id", "method", "size", "count"]]])
+
+    rng = np.random.default_rng(seed)
+    s = sizes_all.merge(meta[["run_id", "setting", "delta", "seed"]], on="run_id")
+    s = pd.concat([s[s.setting.isin(v)].assign(group=k) for k, v in CASCADE_GROUPS.items()])
+    s = s.merge(modes[["method", "group", "delta", "valley"]], on=["method", "group", "delta"], how="left")
+    s["fc"] = s["size"] * s["count"]
+    s["fc_sweep"] = s.fc * ((s["size"] >= s.valley) & s.valley.notna())
+    sd = s.groupby(["method", "group", "delta", "seed"])[["fc", "fc_sweep"]].sum().reset_index()
+    out = []
+    for (m, g, d), x in sd.groupby(["method", "group", "delta"]):
+        a, b = x.fc_sweep.values, x.fc.values
+        idx = rng.integers(0, len(a), size=(n_boot, len(a)))
+        bs = a[idx].sum(1) / b[idx].sum(1)
+        out.append(dict(method=m, group=g, delta=d, share=a.sum() / b.sum(), share_lo=np.quantile(bs, 0.025),
+                        share_hi=np.quantile(bs, 0.975), n_seeds=len(a)))
+    return pd.DataFrame(out).merge(modes[["method", "group", "delta", "sweep_peak"]],
+                                   on=["method", "group", "delta"], how="left")
