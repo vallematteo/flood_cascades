@@ -1,6 +1,6 @@
 """
-    Utility functions for the Flood Mortgage Risk ABM (Julia port).
-    Corresponds to preparation/utils.py in the Python version.
+    Utility functions of the flood mortgage risk agent-based model: map reading,
+    household placement, the expenditure share, and the admission scorecard.
 """
 
 using Images, FileIO
@@ -8,18 +8,17 @@ using Images, FileIO
 """
     read_map(folder::String, path::String) -> Matrix{Float64}
 
-Read an image file, convert to grayscale, invert, and normalize.
-Equivalent to Python's `read_map()`.
+Read an image file, convert it to grayscale, invert it, and normalise it to [0, 1].
 """
 function read_map(folder::String, path::String)
     filepath = joinpath(folder, path)
     img = load(filepath)
     gray = Gray.(img)
-    mat = Float64.(gray)           # values in [0,1]
-    mat = 1.0 .- mat               # invert (same as 255 - pixel / 255)
+    mat = Float64.(gray)           # values in [0, 1]
+    mat = 1.0 .- mat               # invert: dark pixels are high values
     mx = maximum(mat)
     if mx > 0
-        mat ./= mx                 # normalize to [0,1]
+        mat ./= mx                 # normalise to [0, 1]
     end
     return mat
 end
@@ -27,14 +26,14 @@ end
 """
     density_preprocess(density_map::Matrix{Float64}) -> (Vector{Float64}, Vector{Tuple{Int,Int}})
 
-Compute cumulative density slots and coordinates for agent placement.
-Returns (density_slots, coordinates) where coordinates are (row, col) tuples.
+Cumulative density slots and coordinates for placing new households.
+Returns (density_slots, coordinates), with coordinates as (row, col) tuples.
 """
 function density_preprocess(density_map::Matrix{Float64})
     coords = Tuple{Int,Int}[]
     values = Float64[]
-    for i in 1:size(density_map, 1)        # rows outer — matches Python numpy row-major order
-        for j in 1:size(density_map, 2)    # columns
+    for i in 1:size(density_map, 1)        # rows outer
+        for j in 1:size(density_map, 2)    # columns inner
             if density_map[i, j] > 0
                 push!(coords, (i, j))
                 push!(values, density_map[i, j])
@@ -42,30 +41,15 @@ function density_preprocess(density_map::Matrix{Float64})
         end
     end
     cumvals = cumsum(values)
-    cumvals ./= cumvals[end]    # normalize to [0,1]
+    cumvals ./= cumvals[end]    # normalise to [0, 1]
     return cumvals, coords
-end
-
-"""
-    sigmoid(x::Float64) -> Float64
-
-Numerically stable sigmoid. Matches Python utils.sigmoid.
-"""
-function sigmoid(x::Float64)
-    if x >= 0
-        z = exp(-x)
-        return 1.0 / (1.0 + z)
-    else
-        ez = exp(x)
-        return ez / (1.0 + ez)
-    end
 end
 
 """
     calc_share_expenses(income, m, varepsilon, s_ub)
 
-Share of income used for living expenses (scalar or vector).
-Matches Python `calc_share_expenses`.
+Share of income spent on non-housing living expenses, s = min(m / (1 + varepsilon income), s_ub),
+for a scalar or a vector of incomes.
 """
 function calc_share_expenses(income::Float64, m::Float64, varepsilon::Float64, s_ub::Float64)
     share = m / (1.0 + varepsilon * income)
@@ -78,14 +62,13 @@ function calc_share_expenses(income::Vector{Float64}, m::Float64, varepsilon::Fl
 end
 
 """
-    scorecard(r_cap, income, seniority, ltv, install, scoring_intensity) -> Vector{Float64}
+    scorecard(r_cap, income, seniority, ltv, install) -> Vector{Float64}
 
-Vectorized scorecard for new joiners.
-Matches Python `scorecard` from utils.py.
+Admission scorecard for new applicants (maximum 300).
 """
 function scorecard(r_cap::Vector{Float64}, income::Vector{Float64},
                    seniority::Vector{Float64}, ltv::Vector{Float64},
-                   install::Vector{Float64}, scoring_intensity::Float64=1.0)
+                   install::Vector{Float64})
     n = length(r_cap)
     scores = zeros(Float64, n)
     for i in 1:n
@@ -116,7 +99,7 @@ function scorecard(r_cap::Vector{Float64}, income::Vector{Float64},
                install[i] <= 1000 ? 30.0 :
                install[i] <= 1200 ? 20.0 : 10.0
 
-        scores[i] = (cap + inc + sen + ltv_s + inst) * scoring_intensity
+        scores[i] = cap + inc + sen + ltv_s + inst
     end
     return scores
 end

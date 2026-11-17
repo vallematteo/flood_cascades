@@ -1,39 +1,25 @@
 """
-    MortgageModel definition for the Flood Mortgage Risk ABM (Julia port).
-    Corresponds to model_3.py in the Python version.
+    Model definition of the flood mortgage risk agent-based model.
 
-    ## KEY DIFFERENCES FROM PYTHON VERSION
+    Households live on a non-periodic grid of the province of Limburg. Each month
+    (one model step):
 
-    1. **Burr distribution**: SciPy has `scipy.stats.burr` (Burr Type III/XII).
-       Julia's Distributions.jl does not ship a Burr distribution out of the box.
-       We implement sampling via the inverse-CDF method:
-         X = scale * ((U^(-1/d) - 1)^(-1/c)) + loc
-       where U ~ Uniform(0,1). This matches SciPy's Burr XII parameterisation
-       (c, d, loc, scale). See `rand_burr()` below.
+      1. the flood severity of the month is read from the scenario's series, which sets
+         the flood map, the damage D of every household and the unemployment rate;
+      2. new households apply for a mortgage and are admitted by a credit scorecard;
+      3. every household's collateral c and neighbourhood utility U are updated
+         (`cascade_phase!`), including the value discount from last month's
+         foreclosures within radius kappa;
+      4. households step in order of creation (`agent_step!` in agents.jl): they may
+         default through the financial or the strategic channel, be forborne, pay,
+         and change employment;
+      5. foreclosed and matured mortgages leave the model.
 
-    2. **Spatial distance**: This variant uses a non-periodic grid and Euclidean
-       radius kappa. Neighbourhoods are clipped at the map edges, without wrapping.
-
-    3. **Scheduler**: Mesa BaseScheduler steps agents in insertion order.
-       Agents.jl by default iterates `allids(model)` in ID order, which is
-       functionally the same since we insert agents sequentially.
-
-    4. **Data collection**: We collect into pre-allocated column vectors (push!),
-       then build DataFrames only at save time. This avoids O(n^2) vcat.
-
-    5. **Saving**: We save to Parquet via Parquet2.jl for efficient storage.
-
-    6. **`alpha` parameter renamed**: Python model uses `self.alpha` for seniority
-       cap. In Julia we rename to `alpha_param` to avoid conflict with Agents.jl
-       internals. Similarly `m` → `m_param`, `a`/`b` → `a_flood`/`b_flood`.
-
-    7. **Neighbor lookup**: Both models now compute neighbors dynamically each step.
-       Python caches cell positions via `get_neighborhood()` and queries live occupants
-       via `get_cell_list_contents()` each step. Julia calls `nearby_ids()` fresh each step.
-       Dead agents are excluded and new joiners are included automatically.
-
-    8. **Typed properties**: Model properties use a mutable struct (`ModelProps`)
-       instead of Dict{Symbol,Any} for type stability and performance.
+    Implementation notes:
+      - Burr Type III draws use the inverse CDF (`rand_burr`).
+      - Neighbourhoods use the Euclidean radius kappa and are clipped at the map edges.
+      - Model properties are a typed mutable struct (`ModelProps`).
+      - Output is collected in column vectors and written to Parquet at the end of a run.
 """
 
 using Agents
@@ -44,12 +30,14 @@ using CSV, DataFrames, Parquet2
 include("utils.jl")
 include("agents.jl")
 
-# ─── Burr XII sampling via inverse CDF 
+# ─── Burr Type III sampling via the inverse CDF
+
 """
     rand_burr(rng, c, d, loc, scale) -> Float64
 
-Sample from a Burr Type XII distribution with parameters matching
-scipy.stats.burr(c, d, loc, scale).
+Draw from a Burr Type III distribution, F(x) = (1 + ((x - loc)/scale)^(-c))^(-d), the
+parameterisation of scipy.stats.burr(c, d, loc, scale). With U ~ Uniform(0, 1),
+X = scale * (U^(-1/d) - 1)^(-1/c) + loc.
 """
 function rand_burr(rng::AbstractRNG, c::Float64, d::Float64, loc::Float64, scale::Float64)
     u = rand(rng, Uniform(0.0, 1.0))
@@ -61,7 +49,7 @@ function rand_burr_vec(rng::AbstractRNG, c::Float64, d::Float64, loc::Float64, s
 end
 
 
-# ─── Column-based data collectors 
+# ─── Column-based data collectors
 
 mutable struct ModelDataCollector
     gev::Vector{Float64}
@@ -73,11 +61,10 @@ mutable struct ModelDataCollector
     default_rate::Vector{Float64}
     num_new_joiners::Vector{Int}
     acceptance_rate::Vector{Float64}
-    install_scaling::Vector{Float64}
 end
 ModelDataCollector() = ModelDataCollector(
     Float64[], Int[], Int[], Float64[], Int[], Int[],
-    Float64[], Int[], Float64[], Float64[]
+    Float64[], Int[], Float64[]
 )
 
 mutable struct AgentDataCollector
@@ -110,6 +97,12 @@ AgentDataCollector() = AgentDataCollector(
     Float64[], Float64[], Float64[], Int[], Float64[], Float64[], Float64[], Float64[]
 )
 
+"""
+One row per foreclosure, with the household's state at the moment of foreclosure.
+The last six columns attribute the foreclosure to the spillover: U and wtp with and
+without the foreclosure discount (u, u0, p_wtp, p_wtp0), the discounted foreclosure
+count n_kappa, the flood damage D, and the number of households in the kappa-disk.
+"""
 mutable struct FailureDataCollector
     step::Vector{Int}
     t::Vector{Int}
@@ -125,7 +118,6 @@ mutable struct FailureDataCollector
     fin_threshold::Vector{Float64}
     p::Vector{Float64}
     default_reason::Vector{Int}
-    # fcl_cascade: state at foreclosure, for offspring attribution
     u::Vector{Float64}
     u0::Vector{Float64}
     p_wtp0::Vector{Float64}
@@ -140,18 +132,11 @@ FailureDataCollector() = FailureDataCollector(
 )
 
 """
-One row per (step, agent) every time the agent's default trigger fires
-(s_d flips 0->1), regardless of whether it cures (revives same-tick) or
-forecloses. Unlike FailureDataCollector (terminal event only) or
-num_revival_current (step-level aggregate, no agent identity), this gives
-a per-agent event log: grouping by `id` and summing rows gives total
-delinquent months per agent; sorting by `step` within an `id` and diffing
-reveals whether episodes are adjacent (one continuous run) or separated.
-
-State columns mirror FailureDataCollector (same fields, same tick), so the
-forborne population (present here, absent there) can be compared to the
-foreclosed population on identical covariates at the moment of trigger,
-instead of only being observable conditional on having foreclosed.
+One row per (step, household) every time the household's default trigger fires
+(s_d flips 0 -> 1), whether the household is then forborne or forecloses. Grouping by
+`id` gives the number of distress months per household. The state columns are the
+same as in FailureDataCollector, recorded at the same point of the step, so forborne
+and foreclosed households can be compared on identical covariates.
 """
 mutable struct DistressDataCollector
     step::Vector{Int}
@@ -177,43 +162,29 @@ DistressDataCollector() = DistressDataCollector(
 # ─── Typed model properties
 
 mutable struct ModelProps
-    # configuration (const after init)
+    # configuration (constant after initialisation)
     run_id::Int
-    kappa::Int
-    acpt_score::Float64
-    settings::Int
-    add_agent_ctrl::Bool
-    collect_agent_data::Bool
-    rho::Float64
+    kappa::Int                 # neighbourhood radius (grid cells)
+    acpt_score::Float64        # minimum scorecard value for admission
+    settings::Int              # flood scenario, 0 = no floods
+    add_agent_ctrl::Bool       # admit new households every month
+    collect_agent_data::Bool   # record every household every month (large); otherwise final wealth statistics only
+    rho::Float64               # households per unit of housing density
     save_path::String
     tot_step::Int
     beta1::Float64
     beta2::Float64
     beta3::Float64
-    lambda_sen::Float64
-    low_level_ir::Float64
-    exp_lb::Float64
-    eta::Float64
-    vartheta::Float64
-    a_flood::Float64
-    b_flood::Float64
-    g::Float64
-    alpha_param::Float64
-    m_param::Float64
-    varepsilon::Float64
-    s_ub::Float64
-    gu_max::Float64
-    gu_min::Float64
-    N_nj::Int
-    use_ir_scaling::Bool
-    use_score_scaling::Bool
-    use_principal_reduction::Bool
-    use_damage_subsidy::Bool
-    alpha_s::Float64
-    alpha_r::Float64
-    alpha_l::Float64
-    alpha_g::Float64
-    alpha_n::Float64
+    lambda_sen::Float64        # monthly seniority increment while employed
+    exp_lb::Float64            # subsistence floor of non-housing expenditure
+    eta::Float64               # baseline unemployment rate
+    vartheta::Float64          # flood-induced unemployment
+    g::Float64                 # cap on monthly income growth
+    alpha_param::Float64       # seniority cap (alpha)
+    m_param::Float64           # expenditure-share intercept (m)
+    varepsilon::Float64        # expenditure-share decay with income
+    s_ub::Float64              # upper bound of the expenditure share
+    N_nj::Int                  # applicants per month, before scaling by rho
     file_suffix::String
     max_agents::Int
     # maps
@@ -225,7 +196,7 @@ mutable struct ModelProps
     density_slots::Vector{Float64}
     coordinates::Vector{Tuple{Int,Int}}
     gev_list::Vector{Float64}
-    neighbor_offsets::Vector{Tuple{Int,Int}}   # precomputed (dx,dy) for Euclidean kappa neighbourhood
+    neighbor_offsets::Vector{Tuple{Int,Int}}   # (dx, dy) offsets of the Euclidean kappa-disk
     # dynamic state
     gev::Float64
     u_unemployment::Float64
@@ -239,39 +210,31 @@ mutable struct ModelProps
     acceptance_rate::Float64
     num_created::Int
     num_joined::Int
-    gu::Float64
-    std_nj::Float64
-    install_scaling::Float64
-    low_ir_period::Int
-    scoring_intensity::Float64
-    num_revival_current::Int   # revivals this step (reset each step)
-    arrears_threshold::Int     # months in arrears before financial default fires (0 = immediate)
-    revival_all::Bool          # true = original behaviour (all defaulters can revive), false = strategic only
-    revival_lag::Int           # minimum steps in default before revival is eligible (0 = same-tick allowed)
-    num_revival_financial_current::Int   # financial-reason (default_reason==1) revivals this step (reset each step)
-    num_revival_strategic_current::Int   # strategic-reason (default_reason==-1) revivals this step (reset each step)
-    up_psi::Float64            # upper bound of psi ~ Uniform(0, up_psi); 0.5 = canonical model
-    psi1_time_dependent::Bool  # if true, redraw psi_1 (strategic threshold) each tick; psi_2 (employment) stays fixed at birth
-    zeta_scale::Float64        # multiplies the drawn zeta (=w_0/l ratio). 1.0 = as-drawn (median ~43); 0.01 = unit-fix (median ~0.43)
-    save_data_enabled::Bool    # if false, skip the end-of-run parquet dump (for large sweeps that only need in-memory metrics)
-    # fcl_cascade: c = v(1 - lambda*D_t)(1 - delta)^n_kappa
+    num_revival_current::Int   # forborne households this step (reset each step)
+    arrears_threshold::Int     # months below the financial threshold before financial default (0 = immediate)
+    revival_all::Bool          # true: every defaulter can be forborne; false: strategic defaulters only
+    revival_lag::Int           # minimum steps in default before forbearance (when revival_all is false)
+    num_revival_financial_current::Int   # forborne financial defaulters this step
+    num_revival_strategic_current::Int   # forborne strategic defaulters this step
+    up_psi::Float64            # psi ~ Uniform(0, up_psi)
+    psi1_time_dependent::Bool  # redraw psi_1 (strategic threshold) every month; psi_2 (employment) stays fixed
+    zeta_scale::Float64        # scales the drawn ratio of initial funds to loan size
+    save_data_enabled::Bool    # write the Parquet output at the end of the run
+    # foreclosure spillover: c = v (1 - lambda D_t) (1 - delta)^n_kappa
     lambda::Float64            # share of house value lost to a flood at D = 1
     delta::Float64             # value discount per foreclosure within kappa in month t-1
-    rho_mem::Float64           # monthly memory of F, rho = 2^(-1/h) for half-life h (0 = only last month's foreclosures)
-    F_grid::Matrix{Float64}    # weighted foreclosure count per cell, F = rho_mem*F + foreclosures of t-1
-    fcl_last_tick::Vector{Tuple{Int,Int}}   # (x, y) of foreclosures booked by remove_agents!, consumed next tick
+    rho_mem::Float64           # monthly memory of the foreclosure count (0 = only last month's foreclosures)
+    F_grid::Matrix{Float64}    # weighted foreclosure count per cell, F = rho_mem * F + foreclosures of t-1
+    fcl_last_tick::Vector{Tuple{Int,Int}}   # (x, y) of this step's foreclosures, consumed next step
     # data collectors
     model_data::ModelDataCollector
     agent_data::AgentDataCollector
     failures_data::FailureDataCollector
     distress_data::DistressDataCollector
-    micro_observer::Union{Nothing,Function} # read-only birth/decision observer; no RNG
-    # ghost cache disabled: removed agents are ignored in neighborhood utility
-    # ghost_cv::Dict{Int, Tuple{Float64, Float64}}
 end
 
 
-# ─── Model properties constructor 
+# ─── Model properties constructor
 
 function build_model_properties(;
         run_id::Int,
@@ -286,29 +249,15 @@ function build_model_properties(;
         beta2::Float64,
         beta3::Float64,
         lambda_sen::Float64,
-        level_low_ir::Float64,
         exp_lb::Float64,
         eta::Float64,
         vartheta::Float64,
-        a::Float64 = 0.3,     # unused: kept for backward-compat with existing runner call sites
-        b::Float64 = 1.0,     # unused: kept for backward-compat with existing runner call sites
         g::Float64,
         alpha::Float64,
         m::Float64,
         varepsilon::Float64,
         s_ub::Float64,
-        gu_max::Float64,
-        gu_min::Float64,
         N_nj::Int,
-        use_ir_scaling::Bool = false,
-        use_score_scaling::Bool = false,
-        use_principal_reduction::Bool = false,
-        use_damage_subsidy::Bool = false,
-        alpha_s::Float64 = 0.0,
-        alpha_r::Float64 = 0.0,
-        alpha_l::Float64 = 0.0,
-        alpha_g::Float64 = 0.0,
-        alpha_n::Float64 = 0.0,
         collect_agent_data::Bool = true,
         file_suffix::String = "",
         density_map::Matrix{Float64},
@@ -327,7 +276,6 @@ function build_model_properties(;
         lambda::Float64,
         delta::Float64,
         rho_mem::Float64 = 0.0,
-        micro_observer::Union{Nothing,Function} = nothing,
     )
     kappa >= 0 || throw(ArgumentError("kappa must be nonnegative"))
 
@@ -339,11 +287,9 @@ function build_model_properties(;
 
     return ModelProps(
         run_id, kappa, acpt_score, settings, add_agents, collect_agent_data, rho, save_path,
-        tot_step, beta1, beta2, beta3, lambda_sen, level_low_ir, exp_lb,
-        eta, vartheta, a, b, g, alpha, m, varepsilon, s_ub,
-        gu_max, gu_min, N_nj,
-        use_ir_scaling, use_score_scaling, use_principal_reduction, use_damage_subsidy,
-        alpha_s, alpha_r, alpha_l, alpha_g, alpha_n, file_suffix, 6000,
+        tot_step, beta1, beta2, beta3, lambda_sen, exp_lb,
+        eta, vartheta, g, alpha, m, varepsilon, s_ub,
+        N_nj, file_suffix, 6000,   # max_agents
         # maps
         density_map, m_fgrote, m_fmiddel, m_fklein, m_feklein,
         density_slots, coordinates, gev_list, neighbor_offsets,
@@ -356,11 +302,6 @@ function build_model_properties(;
         0,         # current_step
         0.0,       # acceptance_rate
         0, 0,      # num_created, num_joined
-        1.0,       # gu
-        5.0,       # std_nj
-        1.0,       # install_scaling
-        0,         # low_ir_period
-        1.0,       # scoring_intensity
         0,         # num_revival_current
         arrears_threshold,
         revival_all,
@@ -377,12 +318,10 @@ function build_model_properties(;
         AgentDataCollector(),
         FailureDataCollector(),
         DistressDataCollector(),
-        micro_observer,
-        # Dict{Int, Tuple{Float64, Float64}}(),  # ghost_cv disabled
     )
 end
 
-# ─── Model constructor 
+# ─── Model constructor
 
 """
     create_model(; kwargs...) -> AgentBasedModel
@@ -411,7 +350,7 @@ function create_model(; rng_seed::Int = 42, kwargs...)
 end
 
 
-# ─── Populate agents at t=0 
+# ─── Populate agents at t = 0
 
 function populate_agents!(model)
     props = abmproperties(model)
@@ -421,8 +360,8 @@ function populate_agents!(model)
 
     num_per_cell = round.(Int, density_map .* props.rho)
     total_agents = sum(num_per_cell)
-    
-    # initialize reate less than max_agents agents at T=0
+
+    # rescale the initial population so it does not exceed max_agents
     if total_agents > props.max_agents
         scale_factor = props.max_agents / total_agents
         num_per_cell = round.(Int, num_per_cell .* scale_factor)
@@ -455,14 +394,7 @@ function populate_agents!(model)
     living_arr = s_i_arr .* income_arr
     sp_arr     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, N)
     n_arr      = floor.(rand(rng, Uniform(1.0, 121.0), N))
-    # SCALE FIX: v is fit (MLE, real ING data) to be in thousands of euros, see
-    # old_versions/model/model_old.py's "v *= 1000 # unit: euro" (dropped when the
-    # model was refactored into model_3.py / julia_model/model.jl). Without this,
-    # v (~150-300) is ~1000x smaller than income (~3000-4000, already euro-scale),
-    # and ~1000x smaller than delta_p (sp*D*gamma, genuinely euro-scale), causing a
-    # cascade of scale-mismatch bugs (collateral instantly wiped on any flood
-    # contact, wtp_fin/sigmoid stuck near its flat midpoint for ~everyone). See
-    # diag_v_scale_fix/ for the diagnostic this fix was built to test.
+    # house values are fitted in thousands of euros and converted to euros
     v_arr      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, N) .* 1000.0
     p_arr      = ltv_arr .* v_arr ./ n_arr
     l_arr      = p_arr .* n_arr
@@ -480,26 +412,26 @@ function populate_agents!(model)
 end
 
 
-# ─── Model step ──────────────────────────────────────────────────────
+# ─── Model step
 
 """
     model_step!(model)
 
-Single tick of the simulation. Handles pre-agent setup, agent stepping,
-removal, and data collection in the correct order.
+Single month of the simulation: flood severity and unemployment, admission of new
+households, the damage phase, household decisions, removal, and data collection.
 """
 function model_step!(model)
     props = abmproperties(model)
     step = props.current_step
 
-    # Reset per-step counters at start so they're readable after step returns
+    # reset the per-step counters at the start, so they can be read after the step
     props.num_default_current = 0
     props.num_mature_current = 0
     props.num_revival_current = 0
     props.num_revival_financial_current = 0
     props.num_revival_strategic_current = 0
 
-    # ── Pre-agent-step logic ──
+    # ── flood severity and unemployment of the month ──
     if step < length(props.gev_list)
         props.gev = props.gev_list[step + 1]
     end
@@ -510,38 +442,26 @@ function model_step!(model)
         props.u_unemployment = props.eta
     end
 
-    if props.use_ir_scaling
-        ir_scaling!(props)
-    end
-    if props.use_score_scaling
-        score_scaling!(props)
-    end
-    # principal_reduction and damage_subsidy scaling factors are computed
-    # per-agent on demand via principal_reduction_scaling / damage_subsidy_scaling
-
-    # add new joiners
+    # ── new households ──
     if props.add_agent_ctrl
         add_agents!(model)
     end
 
-    # ── Damage phase ──
-    # Every agent's D, c and U are set before any agent steps, so each decision reads
-    # c_{j,t} for every neighbour. Runs after add_agents! so joiners are damaged too.
-    # Uses no RNG, so the random stream is unchanged.
+    # ── damage phase ──
+    # D, c and U are set for every household before any household steps, so every
+    # decision reads this month's c of all neighbours. Runs after add_agents! so new
+    # households are included. Uses no random numbers.
     cascade_phase!(model)
 
-    # ── Agent stepping ──
-    # Sort by ID to reproduce Mesa BaseScheduler insertion-order activation.
-    # Agents get sequential IDs, so sort(allids) == insertion order.
-    # second step 
+    # ── household decisions, in order of creation (sequential IDs) ──
     for id in sort!(collect(allids(model)))
         agent_step!(model[id], model)
     end
 
-    # ── Post-agent-step logic ──
+    # ── foreclosures and matured mortgages leave ──
     remove_agents!(model)
 
-    # data collection skip first 100 warmup steps
+    # data collection skips the first 100 warm-up steps
     if step >= 100
         collect_model_data!(model)
         if props.collect_agent_data
@@ -561,15 +481,7 @@ function model_step!(model)
 end
 
 
-# ─── fcl_cascade: memory grids and grid-based neighbourhood utility 
-
-"""
-    rho_from_half_life(h) -> Float64
-
-Monthly memory rate with half-life `h` months, rho = 2^(-1/h). `h = 0` gives rho = 0,
-so only last month's foreclosures count.
-"""
-rho_from_half_life(h::Real) = h == 0 ? 0.0 : 0.5^(1 / h)
+# ─── Damage phase and neighbourhood utility on the grid
 
 """
     radius_sum(A, k) -> Matrix
@@ -605,17 +517,17 @@ end
 """
     cascade_phase!(model)
 
-Damage phase, run for every agent before any agent steps.
+Damage phase, run for every household before any household steps.
 
-1. F_grid decays by rho_mem and takes last tick's foreclosures, so
-   F_t = sum_{k>=1} rho^(k-1) X_{t-k}: an exponential kernel of infinite length kept in one grid.
-2. n_kappa_i = radius(F), the weighted count of foreclosures within kappa of i (radius_sum is
-   linear, so decaying the cell grid decays the disk sums).
-3. c0_i = v_i(1 - lambda*D_t), the collateral without the discount, and
-   c_i = c0_i * (1 - delta)^n_kappa_i (`update_damage!`).
-4. U_i = radius(c) / radius(v) and U0_i = radius(c0) / radius(v), matching `neighbor_utility`.
+1. F_grid decays by rho_mem and adds last step's foreclosures, so
+   F_t = sum_{k>=1} rho^(k-1) X_{t-k}, kept in one grid.
+2. n_kappa_i = radius(F), the weighted count of foreclosures within kappa of i
+   (radius_sum is linear, so decaying the cell grid decays the disk sums).
+3. c0_i = v_i (1 - lambda D_t), the collateral without the discount, and
+   c_i = c0_i (1 - delta)^n_kappa_i (`update_damage!`).
+4. U_i = radius(c) / radius(v) and U0_i = radius(c0) / radius(v), as in `neighbor_utility`.
 
-Only alive agents enter the sums, and this tick's joiners are included.
+Only households in the model enter the sums, including this step's new households.
 """
 function cascade_phase!(model)
     props = abmproperties(model)
@@ -656,23 +568,7 @@ function cascade_phase!(model)
 end
 
 
-# ─── Add new joiner agents 
-
-function global_utility(model)
-    props = abmproperties(model)
-    tot_c = 0.0
-    tot_v = 0.0
-    for id in allids(model)
-        a = model[id]
-        tot_c += a.c
-        tot_v += a.v
-    end
-    tot_v == 0 && return 0.0
-    utility = tot_c / tot_v
-    # gu = (utility - props.gu_min) / (props.gu_max - props.gu_min)
-    gu = utility
-    return max(0.0, gu)
-end
+# ─── New households
 
 function find_positions(model, num_joiners::Int)
     props = abmproperties(model)
@@ -721,7 +617,7 @@ function add_agents!(model)
     zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* props.zeta_scale
     ltv_v    = abs.(rand(rng, Normal(0.57, 0.1), num_created))
     sp_v     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, num_created)
-    v_v      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, num_created) .* 1000.0  # SCALE FIX, see populate_agents!
+    v_v      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, num_created) .* 1000.0  # thousands of euros to euros
     n_val    = 120.0
     p_v      = ltv_v .* v_v ./ n_val
     l_v      = p_v .* n_val
@@ -730,7 +626,7 @@ function add_agents!(model)
     s_i_v     = calc_share_expenses(income_v, props.m_param, props.varepsilon, props.s_ub)
     living_v  = s_i_v .* income_v
 
-    scores = scorecard(zeta_v, income_v, sen_v, ltv_v, p_v, props.scoring_intensity)
+    scores = scorecard(zeta_v, income_v, sen_v, ltv_v, p_v)
 
     props.num_joined = 0
     for i in 1:num_created
@@ -749,7 +645,7 @@ function add_agents!(model)
 end
 
 
-# ─── Remove defaulted / matured agents 
+# ─── Remove foreclosed and matured mortgages
 
 function remove_agents!(model)
     props = abmproperties(model)
@@ -761,7 +657,6 @@ function remove_agents!(model)
             props.tot_num_agents_active -= 1
             props.num_default_cumul += 1
             props.num_default_current += 1
-            # record failure into column vectors
             push!(fc.step, props.current_step)
             push!(fc.t, a.t)
             push!(fc.id, a.id)
@@ -792,45 +687,12 @@ function remove_agents!(model)
         end
     end
     for id in to_remove
-        a = model[id]
-        # props.ghost_cv[id] = (a.c, a.v)  # ghost cache disabled
         remove_agent!(id, model)
     end
 end
 
 
-# ─── Adaptive Model scaling 
-
-function score_scaling!(props::ModelProps)
-    if props.use_score_scaling
-        props.scoring_intensity = exp(-props.alpha_s * max(props.gev, 0.0))
-    else
-        props.scoring_intensity = 1.0
-    end
-end
-
-function ir_scaling!(props::ModelProps)
-    if props.use_ir_scaling
-        props.install_scaling = exp(-props.alpha_r * max(props.gev, 0.0))
-    else
-        props.install_scaling = 1.0
-    end
-end
-
-function principal_reduction_scaling(props::ModelProps)
-    # Returns the principal scaling factor for flood-exposed agents.
-    # Called per-agent in agent_step! (not stored in props).
-    return props.use_principal_reduction ? exp(-props.alpha_l * max(props.gev, 0.0)) : 1.0
-end
-
-function damage_subsidy_scaling(props::ModelProps)
-    # Returns the damage scaling factor (reduces effective delta_p).
-    # Called per-agent in agent_step! (not stored in props).
-    return props.use_damage_subsidy ? exp(-props.alpha_g * max(props.gev, 0.0)) : 1.0
-end
-
-
-# ─── Data collection (push! into column vectors) 
+# ─── Data collection (push! into column vectors)
 
 function collect_model_data!(model)
     props = abmproperties(model)
@@ -847,7 +709,6 @@ function collect_model_data!(model)
     push!(mc.default_rate, def_rate)
     push!(mc.num_new_joiners, props.num_joined)
     push!(mc.acceptance_rate, props.acceptance_rate)
-    push!(mc.install_scaling, props.install_scaling)
 end
 
 function collect_agent_data!(model)
@@ -881,7 +742,7 @@ function collect_agent_data!(model)
 end
 
 
-# ─── Save data ──────────────────────────────────────────────────────
+# ─── Save data
 
 function collector_to_dataframe(c)
     d = Dict{Symbol, Any}()
@@ -894,8 +755,7 @@ end
 """
     optimize_dtypes(df) -> DataFrame
 
-Downcast numeric columns to the smallest type that preserves the data range,
-matching Python's `optimize_dtypes` in preparation/utils.py.
+Downcast numeric columns to the smallest type that preserves the data range.
 - Float64 → Float32  (Parquet does not support Float16 natively)
 - Int64   → Int8 / Int16 / Int32 or UInt8 / UInt16 / UInt32
 """
@@ -928,8 +788,7 @@ end
 """
     zstd_codec(df) -> Dict{String, Symbol}
 
-Build a per-column zstd compression dict for Parquet2.writefile, matching the
-`compression_codec = Dict("col" => :zstd, ...)` calling convention.
+Per-column zstd compression for Parquet2.writefile.
 """
 function zstd_codec(df::DataFrame)
     return Dict(col => :zstd for col in names(df))
@@ -938,19 +797,14 @@ end
 """
     separate_static_columns(agent_df) -> DataFrame
 
-Separate columns that are constant per agent (`x`, `y`, `c`, `sp`, `v`) from
-the time-series, then merge them back — matching Python's `save_data` logic.
-
-Benefits:
-  1. Columnar Parquet stores long runs of the same value (one agent's constant x
-     repeated across many steps) with near-zero overhead after compression.
-  2. A `first_step` column is added recording when each agent first appeared.
+Move the columns that are constant per household (`x`, `y`, `sp`, `v`) next to the
+identifiers and add `first_step`, the step at which each household first appears.
+Long runs of a repeated value compress to almost nothing in Parquet.
 """
 function separate_static_columns(agent_df::DataFrame)
     static_cols = ["x", "y", "sp", "v"]
 
-    # Collect first-occurrence row index per unique_id.
-    # Agents are stepped in ID order so this equals their creation order.
+    # first row of each household; households step in ID order, i.e. in order of creation
     seen       = Set{Int}()
     first_idxs = Int[]
     for (i, uid) in enumerate(agent_df.unique_id)
@@ -960,23 +814,22 @@ function separate_static_columns(agent_df::DataFrame)
         end
     end
 
-    # Static table: one row per agent with unique_id, first_step, static cols
+    # static table: one row per household
     static_df            = agent_df[first_idxs, vcat(["unique_id"], static_cols)]
     static_df.first_step = agent_df.step[first_idxs]
 
-    # Time-varying table: all columns except the static ones
+    # time-varying table: all other columns
     time_df = select(agent_df, Not(static_cols))
 
-    # Left-join preserves the row order of time_df (DataFrames.jl guarantee)
+    # a left join keeps the row order of time_df
     combined = leftjoin(time_df, static_df, on = :unique_id)
 
-    # Column order: step, unique_id, first_step, static..., everything else
     fixed = vcat(["step", "unique_id", "first_step"], static_cols)
     rest  = [c for c in names(combined) if c ∉ fixed]
     return combined[:, vcat(fixed, rest)]
 end
 
-# Sort vals in-place, then return (gini, median). Reuses the allocation.
+# Sort vals in place, then return (gini, median).
 function gini_and_median!(vals::Vector{Float64})
     n = length(vals)
     n == 0 && return 0.0, 0.0
@@ -994,7 +847,7 @@ function save_data(model)
     mkpath(props.save_path)
     suffix = props.file_suffix
 
-    # ── model data ──────────────────────────────────────────────────
+    # ── model data ──
     model_df = collector_to_dataframe(props.model_data)
     Parquet2.writefile(
         joinpath(props.save_path, "model_data$(suffix).parquet"),
@@ -1002,7 +855,7 @@ function save_data(model)
         compression_codec = zstd_codec(model_df),
     )
 
-    # ── agent data or final wealth stats 
+    # ── household data, or final wealth statistics ──
     if props.collect_agent_data
         raw_agent_df = collector_to_dataframe(props.agent_data)
         agent_df     = optimize_dtypes(separate_static_columns(raw_agent_df))
@@ -1012,7 +865,7 @@ function save_data(model)
             compression_codec = zstd_codec(agent_df),
         )
     else
-        # Compute wealth distribution stats from live agents at final step
+        # wealth distribution of the households alive at the final step
         n_ag = props.tot_num_agents_active
         w_vals  = Vector{Float64}(undef, n_ag)
         wc_vals = Vector{Float64}(undef, n_ag)
@@ -1040,25 +893,19 @@ function save_data(model)
         )
     end
 
-    # ── distress data (SA_4 addition; SA_3 does not write this) ──────────────
-    # Every TRIGGER, i.e. every step at which s_d flipped 0->1, whether or not the
-    # household was later forborne. failures_data below holds only the subset that was
-    # NOT revived, so forbearance is the set difference, keyed on (id, step): a household
-    # triggers and resolves within the same tick, so that pair is unique.
-    #
-    # Carries the same state columns as FailureDataCollector (added on top of the
-    # original step/id/default_reason), so this is now wider than the 1.1-1.4 B/row,
-    # 46-474 KB/run footprint originally measured for the 3-column version; expect it to
-    # approach default_data's per-row size (176-568 KB/run) rather than stay near it.
-    dc_out = props.distress_data
-    distress_df = collector_to_dataframe(dc_out)
+    # ── distress data ──
+    # Every trigger, i.e. every step at which s_d flipped 0 -> 1, whether or not the
+    # household was then forborne. default_data below holds only the triggers that ended
+    # in foreclosure, so forbearance is the set difference on (id, step): a household
+    # triggers and resolves within the same step, so that pair is unique.
+    distress_df = collector_to_dataframe(props.distress_data)
     Parquet2.writefile(
         joinpath(props.save_path, "distress_data$(suffix).parquet"),
         distress_df;
         compression_codec = zstd_codec(distress_df),
     )
 
-    # ── default data 
+    # ── default (foreclosure) data ──
     fc = props.failures_data
     if !isempty(fc.step)
         fail_df = collector_to_dataframe(fc)
@@ -1083,4 +930,3 @@ function save_data(model)
     end
     println("Data saved to $(props.save_path)")
 end
-
