@@ -2,8 +2,6 @@
 
 Code and data for the paper *Neighbourhood flood damage amplifies mortgage default cascades*.
 
-> **Status: work in progress.** Sections marked `TODO` are filled in as the package is built.
-
 ## Contents
 
 - [Overview](#overview)
@@ -29,7 +27,7 @@ The package can be used at three levels:
 | Level | What it reproduces | Where it runs | Time |
 |---|---|---|---|
 | A. Paper from data | every figure, table and number in the paper and SI, from the reduced data in `data/` | a laptop | about 12 minutes |
-| B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | TODO |
+| B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | minutes per experiment (see [REPRODUCE.md](REPRODUCE.md)) |
 | C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (calibration, sensitivity analysis, cascades) | see [REPRODUCE.md](REPRODUCE.md) |
 
 ## Repository contents
@@ -38,12 +36,15 @@ The package can be used at three levels:
 |---|---|
 | [`model/`](model) | the agent-based model (`model.jl`, `agents.jl`, `utils.jl`) |
 | [`preparation/`](preparation) | model inputs and their preparation: flood maps, flood-severity series, initialization (CBS data and baseline parameters) and the calibration targets (NHG, BKR) ([preparation/README.md](preparation/README.md)) |
-| `experiments/` | TODO: one folder per experiment, with its parameter design, simulation runner, SLURM script and reduction script |
-| `data/` | TODO: reduced simulation output, the only data the figure and number scripts read |
-| `figure_*.py` | TODO: one script per figure, named by its number in the paper (`figure_2.py`) or SI (`figure_S1.py`) |
-| `tables.py` | TODO: writes every results table |
-| `paper_numbers.py` | TODO: recomputes every number quoted in the paper and checks it against the printed value |
-| `utils.py` | TODO: code shared by several scripts (paths, data loaders, statistics, plot style) |
+| [`experiments/`](experiments) | one folder per simulation experiment (calibration, global sensitivity analysis, cascades, foreclosure timing, scale of liquid funds), each with its parameter design, runner, SLURM script where it ran on a cluster, reduction script and README |
+| [`data/`](data) | reduced simulation output, the only data the figure, table and number scripts read ([data/README.md](data/README.md)) |
+| `figure_*.py` | one script per figure, named by its number in the paper (`figure_2.py`) or the SI (`figure_S1.py`); Fig. 1 is a schematic (drawn in TikZ, no data) and has no script |
+| `tables.py` | writes Table 1 and SI Tables 5, 6, 8, 9 and 10 as LaTeX tabulars |
+| `paper_numbers.py` | recomputes every number quoted in the paper and the SI and checks it against the printed value |
+| `utils.py` | code shared by several scripts (paths, constants, data loaders, statistics, plot style) |
+| `reproduce.sh` | runs every figure script, `tables.py` and `paper_numbers.py` (level A) |
+| `demo.sh` | the demo below |
+| [`tests/`](tests) | `check_model_equivalence.jl`: the model gives the same output as the version that produced the paper |
 | [`REPRODUCE.md`](REPRODUCE.md) | for each figure, table and number block: the script, the data, the run time, and how to regenerate the data |
 
 ## System requirements
@@ -53,26 +54,30 @@ The package can be used at three levels:
 Level A and the demo need only a standard computer. The timings in this README and in
 REPRODUCE.md were measured on an Apple M3 Pro (11 cores, 18 GB RAM).
 
-The full simulation experiments were run on a SLURM cluster (TODO: node type, cores and memory
-per node).
+The calibration, the sensitivity analysis and the cascade experiment ran on the Snellius
+national supercomputer (SURF, the Netherlands), one node at a time: 2 AMD EPYC 9654 processors,
+192 cores and 1.4 TiB of memory per node. One simulation needs about 1.2 GB of memory and 8 to 9
+s on one core, so any machine with at least 1.5 GB per core can run them; see
+[REPRODUCE.md](REPRODUCE.md#computing-resources).
 
 ### Software
 
 Tested on:
 
 - macOS 27.2 (Apple M3 Pro)
-- TODO: cluster operating system
+- Snellius (Linux, x86-64): TODO operating system version
 
 Dependencies (exact versions are pinned in `Manifest.toml` for Julia and in `pyproject.toml` / `uv.lock` for Python):
 
-- Julia 1.10.4, with Agents.jl 7.0.1 and the packages in `Project.toml`
+- Julia 1.10.4, with Agents.jl 7.0.1 and the packages in `Project.toml`. Use exactly this
+  version: other Julia versions draw different random numbers, so the simulations differ
+  slightly from those in the paper (with [juliaup](https://github.com/JuliaLang/juliaup):
+  `juliaup add 1.10.4`, then `julia +1.10.4`)
 - Python 3.11, managed with [uv](https://docs.astral.sh/uv/): NumPy 1.26.4, pandas 2.3.3, SciPy 1.11.4, Matplotlib 3.10.8, SALib 1.4.7, Pillow 10.2.0, PyArrow 23.0.0
 
 No non-standard hardware is required.
 
 ## Installation guide
-
-TODO: commands and typical install time.
 
 ```bash
 git clone https://github.com/vallematteo/flood_cascades.git
@@ -85,9 +90,28 @@ julia --project=. -e 'using Pkg; Pkg.instantiate()'
 uv sync
 ```
 
+Install time, measured on an Apple M3 Pro with a fast connection and empty caches: about 10
+seconds for the Python environment and about 2 minutes for the Julia environment (download
+and precompilation of the packages).
+
 ## Demo
 
-TODO: one short simulation, its command, expected output and run time.
+The 20 simulations of the calibrated parametrisation without floods, and their reduction:
+
+```bash
+bash demo.sh                              # or: JULIA="julia +1.10.4" bash demo.sh
+```
+
+Expected output (last lines):
+
+```
+20 runs: annual foreclosure rate 0.42% (paper 0.42%), households in financial distress 0.51% (paper 0.51%)
+identical to data/abc_calibration/calibrated/runs_set0.csv.gz
+```
+
+Run time: about 40 seconds on 4 cores of an Apple M3 Pro (precompilation of the Julia packages
+on the first run adds about 30 seconds). The raw output goes to `output/demo/raw/`, the reduced
+table to `output/demo/reduced/`.
 
 ## Reproducing the paper
 
@@ -104,7 +128,7 @@ run time, and how to regenerate its data from the simulations.
 
 ## License
 
-Code: MIT License (see [LICENSE](LICENSE)). Data in `data/`: TODO (CC-BY 4.0). Third-party data
+Code: MIT License (see [LICENSE](LICENSE)). Data in `data/`: Creative Commons Attribution 4.0 (CC BY 4.0). Third-party data
 in `preparation/` keeps the licence of its source (see [preparation/README.md](preparation/README.md)).
 
 ## Citation
