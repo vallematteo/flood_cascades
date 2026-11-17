@@ -67,6 +67,6 @@ explains how to regenerate it, and the reduced data it produces is included in `
 |---|---|---|
 | flood-severity series (2,500 months per scenario) | `preparation/gev/gev_config_static_2500.csv` | reference file used for every simulation in the paper (TODO: generating script) |
 | GEV scenario parameters and tier probabilities | `preparation/gev/gev_scenario_parameters.py` | `python preparation/gev/gev_scenario_parameters.py` |
-| CBS tables 85887NED (income deciles) and 80590NED (unemployment) | `preparation/calibration/cbs/<table>_<pull date>.csv` | `python preparation/calibration/download_cbs.py` |
-| baseline m, ε (with s.e.), exp_lb, η (SI, Baseline parametrisation) | `preparation/calibration/baseline_parameters.csv` | `python preparation/calibration/baseline_parameters.py` |
-| calibration bands (NHG foreclosure rate, BKR distress) | `preparation/calibration/targets/` | `python preparation/calibration/targets/build_calibration_targets.py` |
+| CBS tables 85887NED (income deciles) and 80590NED (unemployment) | `preparation/initialization/cbs/<table>_<pull date>.csv` | `python preparation/initialization/download_cbs.py` |
+| baseline m, ε (with s.e.), exp_lb, η (SI, Baseline parametrisation) | `preparation/initialization/baseline_parameters.csv` | `python preparation/initialization/baseline_parameters.py` |
+| calibration targets: NHG foreclosure-rate and BKR distress bands | `preparation/calibration_targets/` | `python preparation/calibration_targets/build_calibration_targets.py` |

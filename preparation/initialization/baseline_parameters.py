@@ -6,9 +6,10 @@
     eta             steady-state unemployment rate: mean monthly seasonally adjusted rate
                     2021-2025 (CBS 80590NED)
 
-These values centre the ranges of the global sensitivity analysis and of the calibration.
+These values initialise the model and centre the parameter ranges of the global sensitivity
+analysis, whose ranges are also the prior of the calibration (ABC).
 
-Run:    python preparation/calibration/baseline_parameters.py
+Run:    python preparation/initialization/baseline_parameters.py
 Reads:  cbs/85887NED_2026-03-16.csv, cbs/80590NED_2026-11-17.csv (from download_cbs.py)
 Writes: baseline_parameters.csv
 """

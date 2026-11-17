@@ -1,4 +1,4 @@
-"""Download the CBS StatLine tables used to set the baseline parameters.
+"""Download the CBS StatLine tables used to initialise the model (baseline parametrisation).
 
     85887NED  income and consumption expenditure by income decile  -> m, varepsilon
     80590NED  labour force and unemployment, monthly               -> eta
@@ -7,7 +7,7 @@ Each table is saved as cbs/<table>_<pull date>.csv, with the dimension codes rep
 their labels (the same layout as the cbsodata package). CBS revises its tables, so every
 pull is kept under its own date; baseline_parameters.py states which pull the paper uses.
 
-Run:    python preparation/calibration/download_cbs.py
+Run:    python preparation/initialization/download_cbs.py
 Needs:  an internet connection; Python standard library and pandas only.
 """
 import datetime

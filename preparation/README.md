@@ -1,7 +1,10 @@
-# Model and calibration inputs
+# Model inputs and their preparation
 
-Everything the model and the calibration read. The model needs `flood_maps/` and `gev/`; the
-calibration needs `calibration/`.
+| Folder | Used by |
+|---|---|
+| `flood_maps/`, `gev/` | every simulation |
+| `initialization/` | the baseline parametrisation: initial parameter values and the centre of the sensitivity-analysis ranges |
+| `calibration_targets/` | the calibration (ABC) at the no-flood scenario |
 
 ## `flood_maps/`
 
@@ -28,7 +31,7 @@ model grid as described in the SI. TODO: housing-density source, preprocessing s
 `gev_config_static_2500.csv` is the reference file: the paper's results require this exact
 series. TODO: the script that draws a new series from the scenario parameters.
 
-## `calibration/`
+## `initialization/`
 
 | File | Content |
 |---|---|
@@ -37,7 +40,12 @@ series. TODO: the script that draws a new series from the scenario parameters.
 | `cbs/80590NED_2026-11-17.csv` | CBS 80590NED, labour force and unemployment, monthly |
 | `baseline_parameters.py` | baseline values of m and ε (nonlinear least squares on the income deciles, with standard errors and the linearised OLS check), exp_lb (mean social assistance norm 2021 to 2023) and η (mean monthly unemployment rate 2021 to 2025) |
 | `baseline_parameters.csv` | the output of `baseline_parameters.py` |
-| `targets/` | the empirical bands for the calibration (NHG foreclosure rate, BKR financial distress), every source figure behind them, and the script that builds them; see [targets/README.md](targets/README.md) |
 
 The paper's value of η (3.77%) was computed from a pull of 80590NED on 2026-03-17 that was not
 saved; the pull of 2026-11-17 gives the same value. CBS tables are published under CC-BY 4.0.
+
+## `calibration_targets/`
+
+The empirical bands for the calibration (NHG foreclosure rate, BKR financial distress), every
+source figure behind them, and the script that builds them; see
+[calibration_targets/README.md](calibration_targets/README.md).

@@ -30,14 +30,14 @@ The package can be used at three levels:
 |---|---|---|---|
 | A. Paper from data | every figure, table and number in the paper and SI, from the reduced data in `data/` | a laptop | TODO minutes |
 | B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | TODO |
-| C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (sensitivity analysis, cascades, calibration) | see [REPRODUCE.md](REPRODUCE.md) |
+| C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (calibration, sensitivity analysis, cascades) | see [REPRODUCE.md](REPRODUCE.md) |
 
 ## Repository contents
 
 | Path | Content |
 |---|---|
 | [`model/`](model) | the agent-based model (`model.jl`, `agents.jl`, `utils.jl`) |
-| [`preparation/`](preparation) | everything the model and the calibration read: flood maps, flood-severity series, CBS, NHG and BKR data ([preparation/README.md](preparation/README.md)) |
+| [`preparation/`](preparation) | model inputs and their preparation: flood maps, flood-severity series, initialization (CBS data and baseline parameters) and the calibration targets (NHG, BKR) ([preparation/README.md](preparation/README.md)) |
 | `experiments/` | TODO: one folder per experiment, with its parameter design, simulation runner, SLURM script and reduction script |
 | `data/` | TODO: reduced simulation output, the only data the figure and number scripts read |
 | `figure_*.py` | TODO: one script per figure, named by its number in the paper (`figure_2.py`) or SI (`figure_S1.py`) |
