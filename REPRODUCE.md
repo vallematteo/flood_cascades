@@ -6,8 +6,18 @@ the script that produces it, the data it reads, and how that data was generated.
 Figure and table numbers follow the submitted PDFs. All scripts are run from the repository
 root and write to `output/`.
 
-> **Status: work in progress.** A row is completed when its script has been ported and its
-> output checked against the figure in the paper. `TODO` marks what is still missing.
+Every script runs in the uv environment (`uv run python <script>`); `bash reproduce.sh` runs
+them all. Run times are on an Apple M3 Pro.
+
+**Checks.** Rendered with the Python environment that produced the paper (conda, matplotlib
+3.10.8 with FreeType 2.14.1), every figure script reproduces the paper PNG pixel for pixel,
+except SI Fig. 3 (contour labels placed differently: the PNG in the paper predates the last edit
+of its script) and the error bars of the Sobol' panels (SALib's bootstrap was unseeded; the
+package seeds it). The uv environment uses matplotlib's wheel, which bundles FreeType 2.6.1, so
+text and line edges are anti-aliased slightly differently; the content is identical.
+`tables.py` reproduces every cell of the result tables except one (SI Table 9, delta = 0.2,
+S1: 30.4 against 30.5 in the paper). `paper_numbers.py` recomputes 325 numbers of the paper and
+the SI; 318 match, and the 7 others are rounding slips in the text.
 
 ## Experiments
 
@@ -20,7 +30,7 @@ to the files in `data/`.
 | `abc_calibration` | calibration at the no-flood scenario (rejection ABC) | 10,010 | SLURM cluster | TODO core-hours |
 | `global_sa` | global sensitivity analysis (Saltelli design, Sobol' and PAWN indices) | 166,400 | SLURM cluster | TODO core-hours |
 | `cascades_rnet` | foreclosure cascades and the net reproduction number, by flood scenario and spillover intensity | 65,520 | SLURM cluster | TODO core-hours |
-| `foreclosure_timing` | age and distress history at foreclosure | 750 | laptop | TODO (median 7.9 s per run) |
+| `foreclosure_timing` | age and distress history at foreclosure | 1,050 | laptop | about 15 core-hours (8 s per run) |
 
 The raw output of the cluster experiments is not included (TODO: size). Each experiment folder
 explains how to regenerate it, and the reduced data it produces is included in `data/`.
@@ -58,39 +68,35 @@ The cascade timings are from the log of an identical design run on 2026-11-05 (j
 
 ## Main text
 
-| Item | Script | Data | Run time | Data from |
-|---|---|---|---|---|
-| Fig. 1 | none: schematic of the model, not generated from data | | | |
-| Fig. 2 | TODO `figure_2.py` | TODO `data/abc_calibration/` | TODO | `abc_calibration` |
-| Fig. 3a | TODO `figure_3.py` | TODO `data/cascades_rnet/` | TODO | `cascades_rnet` |
-| Fig. 3b | TODO `figure_3.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| Fig. 4 | TODO `figure_4.py` | TODO `data/cascades_rnet/` | TODO | `cascades_rnet` |
-| Fig. 5 | TODO `figure_5.py` | TODO `data/foreclosure_timing/` | TODO | `foreclosure_timing` |
-| Table 1 | TODO `tables.py` | `preparation/gev/` | TODO | GEV scenario parameters |
-| Numbers in the text | TODO `paper_numbers.py` | TODO | TODO | all |
+| Item | Script | Data | Data from |
+|---|---|---|---|
+| Fig. 1 | none: schematic of the model, not generated from data | | |
+| Fig. 2 | `figure_2.py` | `data/abc_calibration/` | `abc_calibration` |
+| Fig. 3a | `figure_3.py` | `data/cascades_rnet/runs_all.csv.gz` | `cascades_rnet` |
+| Fig. 3b | `figure_3.py` | `data/global_sa/` | `global_sa` |
+| Fig. 4 | `figure_4.py` | `data/cascades_rnet/` (paired seeds, cascade sizes) | `cascades_rnet` |
+| Fig. 5 | `figure_5.py` | `data/foreclosure_timing/gap_*` | `foreclosure_timing` |
+| Table 1 | `tables.py` | GEV parameters (`utils.py`) | `preparation/gev/` |
+| Numbers in the text | `paper_numbers.py` | all of `data/`, `preparation/initialization/baseline_parameters.csv` | all |
 
 ## Supplementary Information
 
-| Item | Script | Data | Run time | Data from |
-|---|---|---|---|---|
-| SI Fig. 1 | TODO `figure_S1.py` | `preparation/gev/` | TODO | GEV scenario parameters |
-| SI Fig. 2 | TODO `figure_S2.py` | TODO `preparation/flood_maps/`, `data/cascades_rnet/` | TODO | `cascades_rnet` |
-| SI Fig. 3 | TODO `figure_S3.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Fig. 4 | TODO `figure_S4.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Fig. 5 | TODO `figure_S5.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Fig. 6 | TODO `figure_S6.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Fig. 7 | TODO `figure_S7.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Fig. 8 | TODO `figure_S8.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Fig. 9 | TODO `figure_S9.py` | TODO `data/cascades_rnet/` | TODO | `cascades_rnet` |
-| SI Fig. 10 | TODO `figure_S10.py` | TODO `data/cascades_rnet/` | TODO | `cascades_rnet` |
-| SI Fig. 11 | TODO `figure_S11.py` | TODO `data/foreclosure_timing/` | TODO | `foreclosure_timing` |
-| SI Fig. 12 | TODO `figure_S12.py` | TODO `data/foreclosure_timing/` | TODO | `foreclosure_timing` |
-| SI Tables 1–5 | none: model specification (parameters, distributions, attributes, scorecard) | TODO: confirm SI Table 5 | | |
-| SI Table 6 | TODO `tables.py` | TODO `data/abc_calibration/` | TODO | `abc_calibration` |
-| SI Table 7 | none: sampling ranges of the sensitivity analysis | | | |
-| SI Table 8 | TODO `tables.py` | TODO `data/global_sa/` | TODO | `global_sa` |
-| SI Tables 9–10 | TODO `tables.py` | TODO `data/cascades_rnet/` | TODO | `cascades_rnet` |
-| Numbers in the SI | TODO `paper_numbers.py` | TODO | TODO | all |
+| Item | Script | Data | Data from |
+|---|---|---|---|
+| SI Fig. 1 | `figure_S1.py` | GEV parameters (`utils.py`) | `preparation/gev/` |
+| SI Fig. 2 | `figure_S2.py` | `preparation/flood_maps/`, `data/cascades_rnet/fcl_cells.csv.gz`, `runs_all.csv.gz` | `cascades_rnet` |
+| SI Fig. 3 | `figure_S3.py` | `data/global_sa/runs_set*.csv.gz` | `global_sa` |
+| SI Figs 4 to 6 | `figure_S4.py`, `figure_S5.py`, `figure_S6.py` (panels a, b, c) | `data/global_sa/` | `global_sa` |
+| SI Figs 7 and 8 | `figure_S7.py` (panels a, b), `figure_S8.py` | `data/global_sa/` | `global_sa` |
+| SI Figs 9 and 10 | `figure_S9.py`, `figure_S10.py` | `data/cascades_rnet/paired_seed.csv.gz` | `cascades_rnet` |
+| SI Figs 11 and 12 | `figure_S11.py`, `figure_S12.py` | `data/foreclosure_timing/` | `foreclosure_timing` |
+| SI Tables 1 to 4 | none: model specification (parameters, distributions, attributes, scorecard) | | |
+| SI Table 5 | TODO: admission of 2 x 10^6 applicant draws | | |
+| SI Table 6 | `tables.py` | `data/abc_calibration/` | `abc_calibration` |
+| SI Table 7 | none: sampling ranges of the sensitivity analysis | | |
+| SI Table 8 | `tables.py` | `data/global_sa/` | `global_sa` |
+| SI Tables 9 and 10 | `tables.py` | `data/cascades_rnet/` | `cascades_rnet` |
+| Numbers in the SI | `paper_numbers.py` | all of `data/` | all |
 
 ## Model inputs
 

@@ -23,7 +23,6 @@ verify_text (the chart is an image) and must be checked by eye on the stated pag
 import argparse
 import json
 import os
-import re
 import subprocess
 import urllib.parse
 import urllib.request

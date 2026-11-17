@@ -15,6 +15,7 @@ Calibration at the no-flood scenario (rejection ABC). Run on a SLURM cluster, 20
 |---|---|---|
 | `design.csv` | the 1,001 parameter combinations (one row per `sample_id`): the points of a scrambled Sobol' sequence of 2^13 points (`raw_index`) on the sensitivity-analysis ranges with beta1 - beta2 >= 1/2 | `experiments/abc_calibration/design.py` |
 | `runs_set0.csv.gz` | one row per run (combination x 10 seeds): parameters, trigger and foreclosure counts by channel, mean active mortgages, `rate_tot` (annual foreclosures per 100 active mortgages) and `arrears_fin` (annual share of households in financial distress, %) | `experiments/global_sa/reduce.py --runs-only` |
+| `calibrated/runs_set0.csv.gz` | the same per-run table for the calibrated parametrisation at the baseline values of the other parameters (beta1 = 1, beta2 = 0.5, beta3 = 1, kappa = 10), S0, delta = 0, 20 seeds of the cascade experiment (run on a laptop, 2026-11-17): the foreclosure rate (0.42%) and the share of households in financial distress (0.51%) of the main text | `experiments/global_sa/reduce.py --runs-only` on `output/abc_calibration/run_list_calibrated.csv` |
 
 ## `global_sa/`
 
@@ -41,7 +42,7 @@ SLURM cluster, 2026-11-10.
 | `paired_seed.csv.gz` | per seed: flooded runs against the S0 run of the same seed | `experiments/cascades_rnet/reduce_runs.py` |
 | `sizes_by_run.csv.gz`, `trees_by_run.csv.gz` | foreclosure cascades reconstructed as weighted trees: cascade sizes per run, and tree counts per run | `experiments/cascades_rnet/reconstruct_cascades.py` |
 | `af_runs.csv`, `af_sizes_by_run.csv` | attribution-free spatio-temporal clusters of foreclosures, per run and their sizes | `experiments/cascades_rnet/cluster_attribution_free.py` |
-| `fcl_cells.csv.gz` | post-warm-up foreclosures per (run, map cell) for the delta = 0 runs drawn in the maps of SI Fig. 2: `run_id, x, y, n_fcl` | `experiments/cascades_rnet/reduce_fcl_cells.py` |
+| `fcl_cells.csv.gz` | post-warm-up foreclosures of the delta = 0 runs at kappa = 10, beta1 - beta2 = 0.5, vartheta = 0.05 (the maps of SI Fig. 2 and the share of strategic foreclosures in undamaged homes), per run, map cell, channel and flood status: `run_id, x, y, channel` (1 financial, 0 strategic), `flooded` (1 if the home was damaged in the month of foreclosure), `n_fcl` | `experiments/cascades_rnet/reduce_fcl_cells.py` |
 
 ## `foreclosure_timing/`
 
