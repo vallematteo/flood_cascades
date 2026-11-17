@@ -352,3 +352,145 @@ def delta_positions(flooded, s0r):
 def delta_axis(ax, deltas):
     ax.set_xticks(range(len(deltas)), [f"{d:g}" for d in deltas])
     ax.set_xlim(-0.6, len(deltas) - 0.4)
+
+
+# ─── Sensitivity analysis: Sobol' and PAWN indices
+
+GSA_SOBOL_SEED = 1        # seed of SALib's bootstrap of the Sobol' confidence intervals
+PAWN_S = 10               # conditioning intervals of PAWN
+PAWN_PERMUTATIONS, PAWN_PERMUTATION_SEED = 10_000, 12345
+
+
+def gsa_problem():
+    """SALib problem of the sensitivity analysis (names and bounds of the 11 parameters)."""
+    p = read("global_sa/design/problem_definition.csv")
+    return {"num_vars": len(p), "names": p.parameter.tolist(),
+            "bounds": [[r.lower_bound, r.upper_bound] for r in p.itertuples()]}
+
+
+def gsa_outcome(setting, Y):
+    """Outcome Y of every parameter vector in one scenario, in design order; missing values
+    (vectors without foreclosures) are replaced by the mean."""
+    y = read(f"global_sa/vectors_set{setting}.csv").sort_values("saltelli_sample_id")[Y].to_numpy(float)
+    return np.where(np.isnan(y), np.nanmean(y), y) if np.isnan(y).any() else y
+
+
+def sobol_indices(Y):
+    """First- and total-order Sobol' indices of outcome Y in every scenario, with 95% bootstrap
+    intervals: {setting: SALib result}."""
+    from SALib.analyze import sobol
+    problem = gsa_problem()
+    D = problem["num_vars"]
+    out = {}
+    for s in range(5):
+        y = gsa_outcome(s, Y)
+        n = len(y) // (D + 2)
+        # the design is stored in blocks [A; B; AB_0; ...; AB_{D-1}]; SALib expects each base
+        # sample's rows together, [A_i, AB_0_i, ..., AB_{D-1}_i, B_i]
+        y_interleaved = np.column_stack([y[0:n], *[y[(j + 2) * n:(j + 3) * n] for j in range(D)],
+                                         y[n:2 * n]]).flatten()
+        out[s] = sobol.analyze(problem, y_interleaved, calc_second_order=False, print_to_console=False,
+                               seed=GSA_SOBOL_SEED)
+    return out
+
+
+def pawn_design():
+    """Parameter values of the A and B blocks of the Saltelli design (2 x 256 independent draws),
+    the sample PAWN uses."""
+    problem = gsa_problem()
+    n = len(load_saltelli_matrix()) // (problem["num_vars"] + 2)
+    m = load_saltelli_matrix().sort_values("saltelli_sample_id")
+    return m[m.saltelli_sample_id < 2 * n][problem["names"]].to_numpy(float)
+
+
+def pawn_indices(Y, S=PAWN_S):
+    """PAWN indices of outcome Y in every scenario (median, minimum and maximum over the S
+    conditioning intervals): {setting: SALib result}."""
+    from SALib.analyze import pawn
+    problem, X = gsa_problem(), pawn_design()
+    return {s: pawn.analyze(problem, X, gsa_outcome(s, Y)[:len(X)], S=S, seed=0) for s in range(5)}
+
+
+def _pawn_medians(labels, n_values, full_cdf, masks):
+    """Median over the conditioning intervals of the KS distance, per parameter (SALib's statistic)."""
+    medians = np.empty(len(masks))
+    for j, parameter_masks in enumerate(masks):
+        distances = []
+        for mask in parameter_masks:
+            n_selected = int(mask.sum())
+            if n_selected:
+                cdf = np.cumsum(np.bincount(labels[mask], minlength=n_values)) / n_selected
+                distances.append(np.max(np.abs(cdf - full_cdf)))
+        medians[j] = np.median(distances)
+    return medians
+
+
+def pawn_threshold(Y, S=PAWN_S, n_permutations=PAWN_PERMUTATIONS, seed=PAWN_PERMUTATION_SEED):
+    """95% max-T permutation threshold of the PAWN indices of outcome Y: the outcome is permuted
+    across the design (the same permutation in every scenario), and the threshold is the 95%
+    quantile of the largest index over the 11 parameters and 5 scenarios."""
+    X = pawn_design()
+    masks = []
+    for j in range(X.shape[1]):
+        q = np.nanquantile(X[:, j], np.arange(S + 1) / S)
+        masks.append([(X[:, j] >= q[s]) & (X[:, j] < q[s + 1]) for s in range(S)])
+    prepared = []
+    for s in range(5):
+        _, labels, counts = np.unique(gsa_outcome(s, Y)[:len(X)], return_inverse=True, return_counts=True)
+        prepared.append((labels, len(counts), np.cumsum(counts) / len(X)))
+    rng = np.random.default_rng(seed)
+    largest = np.empty(n_permutations)
+    for b in range(n_permutations):
+        perm = rng.permutation(len(X))
+        largest[b] = max(_pawn_medians(lab[perm], nv, cdf, masks).max() for lab, nv, cdf in prepared)
+    return float(np.quantile(largest, 0.95))
+
+
+def _index_axes(ax, ylabel, exp_lb=r"\mathrm{exp}_{lb}"):
+    names = gsa_problem()["names"]
+    ax.axhline(0, color="black", linewidth=1.2, linestyle="--", alpha=0.5)
+    ax.set_xticks(np.arange(len(names)))
+    ax.set_xticklabels([f"${exp_lb if p == 'exp_lb' else GREEK[p]}$" for p in names], fontsize=FS)
+    ax.tick_params(axis="y", labelsize=FS)
+    ax.set_ylabel(ylabel, fontsize=FS, fontweight="bold")
+    ax.set_xlabel("Parameters", fontsize=FS, fontweight="bold")
+    ax.grid(axis="y", linestyle="-", alpha=0.2, color="gray", linewidth=0.5)
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["left"].set_linewidth(1.5)
+    ax.spines["bottom"].set_linewidth(1.5)
+    ax.legend(framealpha=0, fontsize=FS - 5, loc="upper right", edgecolor="black", fancybox=False)
+    ax.set_ylim(-0.05, 1.05)
+
+
+def sobol_figure(Y, order, name):
+    """Sobol' indices of outcome Y (order 'S1' first-order or 'ST' total-order) per parameter and
+    scenario, with 95% bootstrap intervals; written to output/figures/<name>.png."""
+    indices = sobol_indices(Y)
+    x, offsets = np.arange(len(gsa_problem()["names"])), np.linspace(-0.32, 0.32, 5)
+    fig, ax = plt.subplots(figsize=(12, 7))
+    for i, (s, si) in enumerate(indices.items()):
+        ax.errorbar(x + offsets[i], si[order], yerr=si[f"{order}_conf"], fmt="o", color=SETTING_COLORS[s],
+                    capsize=6, markersize=10, linewidth=2.5, label=f"$\\mathcal{{S}}_{{{s}}}$", zorder=3, elinewidth=2)
+    _index_axes(ax, "First-Order Sobol Index ($S_1$)" if order == "S1" else "Total-Order Sobol Index ($S_T$)")
+    fig.tight_layout()
+    save_figure(fig, name, dpi=300)
+
+
+def pawn_figure(Y, name):
+    """Median PAWN index of outcome Y per parameter and scenario, bars from the minimum to the
+    maximum over the conditioning intervals, dotted line at the 95% max-T permutation threshold;
+    written to output/figures/<name>.png."""
+    indices, threshold = pawn_indices(Y), pawn_threshold(Y)
+    x, offsets = np.arange(len(gsa_problem()["names"])), np.linspace(-0.32, 0.32, 5)
+    fig, ax = plt.subplots(figsize=(12, 7))
+    for i, (s, si) in enumerate(indices.items()):
+        med = np.asarray(si["median"], float)
+        err = np.vstack([np.clip(med - np.asarray(si["minimum"], float), 0, None),
+                         np.clip(np.asarray(si["maximum"], float) - med, 0, None)])
+        ax.errorbar(x + offsets[i], med, yerr=err, fmt="o", color=SETTING_COLORS[s], capsize=6, markersize=10,
+                    linewidth=2.5, label=f"$\\mathcal{{S}}_{{{s}}}$", zorder=3, elinewidth=2)
+    ax.axhline(threshold, color="#b2182b", linewidth=2.0, linestyle=":", alpha=0.95, label="95% perm.", zorder=2)
+    _index_axes(ax, "PAWN Index (median)", exp_lb=r"\mathit{exp}_{lb}")
+    fig.tight_layout()
+    save_figure(fig, name, dpi=300)
