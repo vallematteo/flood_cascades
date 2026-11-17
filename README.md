@@ -28,7 +28,7 @@ The package can be used at three levels:
 
 | Level | What it reproduces | Where it runs | Time |
 |---|---|---|---|
-| A. Paper from data | every figure, table and number in the paper and SI, from the reduced data in `data/` | a laptop | TODO minutes |
+| A. Paper from data | every figure, table and number in the paper and SI, from the reduced data in `data/` | a laptop | about 12 minutes |
 | B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | TODO |
 | C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (calibration, sensitivity analysis, cascades) | see [REPRODUCE.md](REPRODUCE.md) |
 
@@ -91,10 +91,9 @@ TODO: one short simulation, its command, expected output and run time.
 
 ## Reproducing the paper
 
-TODO. In short:
 
 ```bash
-bash reproduce.sh        # every figure, table and number from data/ (level A)
+bash reproduce.sh        # every figure, table and number from data/ (level A), about 12 minutes
 ```
 
 Run every Python script through uv, for example `uv run python figure_2.py`, so it uses the

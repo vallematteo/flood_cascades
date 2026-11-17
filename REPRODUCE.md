@@ -7,7 +7,9 @@ Figure and table numbers follow the submitted PDFs. All scripts are run from the
 root and write to `output/`.
 
 Every script runs in the uv environment (`uv run python <script>`); `bash reproduce.sh` runs
-them all. Run times are on an Apple M3 Pro.
+them all, in about 12 minutes on an Apple M3 Pro: a few seconds per figure, except SI Figs 4
+to 7 (about 80 s each, for the PAWN permutation thresholds), `tables.py` (20 s) and
+`paper_numbers.py` (about 5 minutes).
 
 **Checks.** Rendered with the Python environment that produced the paper (conda, matplotlib
 3.10.8 with FreeType 2.14.1), every figure script reproduces the paper PNG pixel for pixel,
