@@ -23,7 +23,7 @@ the SI; 318 match, and the 7 others are rounding slips in the text.
 
 ## Experiments
 
-The data in `data/` comes from four simulation experiments. Each has its own folder in
+The data in `data/` comes from five simulation experiments. Each has its own folder in
 `experiments/` with the parameter design, the runner, and the script that reduces raw output
 to the files in `data/`.
 
@@ -33,6 +33,7 @@ to the files in `data/`.
 | `global_sa` | global sensitivity analysis (Saltelli design, Sobol' and PAWN indices) | 166,400 | SLURM cluster | TODO core-hours |
 | `cascades_rnet` | foreclosure cascades and the net reproduction number, by flood scenario and spillover intensity | 65,520 | SLURM cluster | TODO core-hours |
 | `foreclosure_timing` | age and distress history at foreclosure | 1,050 | laptop | about 15 core-hours (8 s per run) |
+| `zeta_scale` | scale of initial liquid funds: admission, population and no-flood rates | 505 | laptop | about 1 core-hour (7 min on 8 cores) |
 
 The raw output of the cluster experiments is not included (TODO: size). Each experiment folder
 explains how to regenerate it, and the reduced data it produces is included in `data/`.
@@ -64,6 +65,7 @@ calibration, which also writes Parquet output, peaks at 0.91 GB per worker (110 
 | `abc_calibration` | one node, 2026-11-04 | 10,010 | TODO | TODO |
 | `cascades_rnet` | one node, 2026-11-10 | 65,520 | about 1 h (simulation 55 min: 13 cells of 5,040 runs, 250 to 280 s each, mean 8.7 s per run) plus Julia start-up | TODO (`sacct`) |
 | `foreclosure_timing` | laptop, 10 cores, 2026-11-10 | 1,050 | TODO | |
+| `zeta_scale` | laptop, 8 workers, 2026-11-17 | 505 | 436 s | about 1 |
 
 The cascade timings are from the log of an identical design run on 2026-11-05 (job on node
 `fcn98`, 13 chunks of 5,040 runs, 3,315 s of simulation in all).

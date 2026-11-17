@@ -59,6 +59,23 @@ def initialization():
     return b
 
 
+def zeta_scale():
+    """Test of the scale of initial liquid funds (experiments/zeta_scale/): seeds averaged per scale."""
+    z = read(os.path.join(ROOT, "data", "zeta_scale", "runs.csv.gz")).groupby("zeta_scale").mean(numeric_only=True)
+    w = "SI Agent initialisation (zeta_scale)"
+    number(w, "scale values", len(z), 101, 0)
+    mid = z[(z.index >= 0.008 - 1e-9) & (z.index <= 0.02 + 1e-9)]
+    number(w, "foreclosure rate, scales 0.008-0.02, lowest (%)", mid.rate_tot.min(), 0.39)
+    number(w, "foreclosure rate, scales 0.008-0.02, highest (%)", mid.rate_tot.max(), 0.46)
+    number(w, "financial distress, scales 0.008-0.02, lowest (%)", mid.arrears_fin.min(), 0.46)
+    number(w, "financial distress, scales 0.008-0.02, highest (%)", mid.arrears_fin.max(), 0.54)
+    for s, age, acc, pop, dec in ((0.01, 51, 5.9, 960, -1), (0.015, 61, 16.5, 2700, -2), (0.02, 69, 22.6, 3700, -2)):
+        r = z.loc[np.isclose(z.index, s)].iloc[0]
+        number(w, f"median loan age at financial foreclosure, scale {s}, mean over seeds (months)", r.median_age_fin, age, 0)
+        number(w, f"applicants admitted, scale {s} (%)", 100 * r.acceptance, acc, 1)
+        number(w, f"mean active households, scale {s} (about)", r.mean_active, pop, dec)
+
+
 # ─── Calibration (main text and SI) ─────────────────────────────────────────────────────
 
 def calibration(baseline):
@@ -588,6 +605,7 @@ def cascades():
 
 def main():
     baseline = initialization()
+    zeta_scale()
     calibration(baseline)
     rates()
     maps_and_composition()

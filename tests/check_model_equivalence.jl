@@ -22,8 +22,11 @@ Run from the repository root:
 const ROOT = abspath(joinpath(@__DIR__, ".."))
 const PAPER_COMMIT = "b10cf66"
 
-# One simulation per (setting, seed) at the calibrated parameters, with spillovers on.
-const RUNS = [(setting = s, seed = sd) for s in (0, 4) for sd in (788269981, 1559343818)]
+# One simulation per (setting, seed) at the calibrated parameters, with spillovers on, plus
+# one at a different scale of initial funds (zeta_scale, default 0.015). The clean model
+# receives zeta_scale only when it differs from the default, so the default is tested too.
+const RUNS = [[(setting = s, seed = sd, zeta = 0.015) for s in (0, 4) for sd in (788269981, 1559343818)];
+              [(setting = 0, seed = 788269981, zeta = 0.01)]]
 const TOT_STEP = 200
 
 # Household state variables present in both models.
@@ -38,7 +41,7 @@ function worker_script(model_dir, out_dir, paper_model::Bool)
     extra = paper_model ? """
         level_low_ir = 1.0, gu_max = 1.0, gu_min = 0.9, lambda_sen = 1.0, g = 0.0,
         use_ir_scaling = false, use_score_scaling = false, collect_agent_data = false,
-        up_psi = 1.0, psi1_time_dependent = true, zeta_scale = 0.015, revival_all = true,
+        up_psi = 1.0, psi1_time_dependent = true, revival_all = true,
         rho_mem = 0.0,""" : ""
     return """
     include(joinpath("$model_dir", "model.jl"))
@@ -62,7 +65,8 @@ function worker_script(model_dir, out_dir, paper_model::Bool)
             density_map = maps.nvm, m_fgrote = maps.grote, m_fmiddel = maps.middel,
             m_fklein = maps.klein, m_feklein = maps.eklein,
             gev_list = Float64.(gev[!, Symbol("set\$(r.setting)")]),
-            lambda = 0.5, delta = 0.1)
+            lambda = 0.5, delta = 0.1,
+            ($paper_model || r.zeta != 0.015 ? (; zeta_scale = r.zeta) : (;))...)
         step!(model, $TOT_STEP)
         for name in ("model_data", "agent_data", "default_data", "distress_data")
             df = DataFrame(Parquet2.Dataset(joinpath(run_dir, name * ".parquet")); copycols = true)
@@ -101,7 +105,7 @@ function main()
         same = success(`diff -q $a $b`)
         n_different += !same
         rows = countlines(a) - 1
-        println(rpad("run $i (S$(RUNS[i].setting), seed $(RUNS[i].seed)) $name", 58),
+        println(rpad("run $i (S$(RUNS[i].setting), seed $(RUNS[i].seed), zeta $(RUNS[i].zeta)) $name", 70),
                 lpad("$rows rows  ", 14), same ? "identical" : "DIFFERENT")
     end
     println(n_different == 0 ? "\nThe two models produce identical output." :

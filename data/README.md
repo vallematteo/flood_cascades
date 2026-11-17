@@ -56,3 +56,13 @@ Age and distress history at foreclosure, calibrated parametrisation. Run on a la
 | `{gap,beta3}_foreclosures.csv.gz` | one row per foreclosure after the warm-up: `run_id`, `step` (model month), `t` (mortgage age, months), `id` (household), `default_reason` (1 financial, -1 strategic), `ltv`, `n_dis` (distress months including the foreclosure), `n_dis_fin`, `n_dis_strat`, `t_dis_first` (mortgage age at the first distress month, -1 if none) |
 
 Produced by `experiments/foreclosure_timing/reduce_foreclosure_timing.py` from the runner output.
+
+## `zeta_scale/`
+
+Test of the scale of initial liquid funds (`zeta_scale`, 0.015 in every other simulation): 101
+values from 0.005 to 0.03 x 5 seeds (505 runs), S0, delta = 0, calibrated parametrisation.
+Run on a laptop, 2026-11-17.
+
+| File | Content | Produced by |
+|---|---|---|
+| `runs.csv.gz` | one row per run: `zeta_scale`, `seed_index`, `seed`, `acceptance` (share of applicants admitted), `mean_active`, foreclosure counts by channel, `n_hhyr_fin`, `rate_tot` (annual foreclosures per 100 active mortgages), `arrears_fin` (annual share of households in financial distress, %), `median_age_fin` (median loan age at financial foreclosure, months) | `experiments/zeta_scale/reduce.py` |

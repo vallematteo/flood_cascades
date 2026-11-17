@@ -30,8 +30,6 @@ using CSV, DataFrames, Parquet2
 include("utils.jl")
 include("agents.jl")
 
-# The fitted distribution of initial funds relative to the loan (zeta) is rescaled by this factor.
-const ZETA_SCALE = 0.015
 
 # ─── Burr Type III sampling via the inverse CDF
 
@@ -154,6 +152,7 @@ mutable struct ModelProps
     m_param::Float64           # expenditure-share intercept (m)
     varepsilon::Float64        # expenditure-share decay with income
     s_ub::Float64              # upper bound of the expenditure share
+    zeta_scale::Float64        # factor applied to the fitted ratio of initial funds to the loan (zeta)
     N_nj::Int                  # applicants per month, before scaling by rho
     file_suffix::String
     max_agents::Int
@@ -217,6 +216,7 @@ function build_model_properties(;
         m::Float64,
         varepsilon::Float64,
         s_ub::Float64,
+        zeta_scale::Float64 = 0.015,
         N_nj::Int,
         file_suffix::String = "",
         density_map::Matrix{Float64},
@@ -240,7 +240,7 @@ function build_model_properties(;
     return ModelProps(
         run_id, kappa, acpt_score, settings, add_agents, rho, save_path,
         tot_step, beta1, beta2, beta3, exp_lb,
-        eta, vartheta, alpha, m, varepsilon, s_ub,
+        eta, vartheta, alpha, m, varepsilon, s_ub, zeta_scale,
         N_nj, file_suffix, 6000,   # max_agents
         # maps
         density_map, m_fgrote, m_fmiddel, m_fklein, m_feklein,
@@ -334,7 +334,7 @@ function populate_agents!(model)
     ltv_arr    = abs.(rand(rng, Normal(0.57, 0.1), N))
     income_arr = rand_burr_vec(rng, 3.30, 0.45, -12.76, 3101.46, N)
     sen_arr    = rand(rng, Beta(0.88, 2.79), N) .* 106.34 .+ 1.0
-    zeta_arr   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, N) .* ZETA_SCALE
+    zeta_arr   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, N) .* props.zeta_scale
     s_i_arr    = calc_share_expenses(income_arr, props.m_param, props.varepsilon, props.s_ub)
     living_arr = s_i_arr .* income_arr
     sp_arr     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, N)
@@ -554,7 +554,7 @@ function add_agents!(model)
 
     income_v = rand_burr_vec(rng, 3.30, 0.45, -12.76, 3101.46, num_created)
     sen_v    = rand(rng, Beta(0.88, 2.79), num_created) .* 106.34 .+ 1.0
-    zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* ZETA_SCALE
+    zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* props.zeta_scale
     ltv_v    = abs.(rand(rng, Normal(0.57, 0.1), num_created))
     sp_v     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, num_created)
     v_v      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, num_created) .* 1000.0  # thousands of euros to euros

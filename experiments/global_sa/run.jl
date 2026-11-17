@@ -13,8 +13,10 @@
     Run lists:
       sensitivity analysis  output/global_sa/run_list.csv       (experiments/global_sa/design.py, 166,400 runs)
       calibration           output/abc_calibration/run_list.csv (experiments/abc_calibration/design.py, 10,010 runs)
+      zeta_scale test       output/zeta_scale/run_list.csv      (experiments/zeta_scale/design.py, 505 runs)
 
-    Parameters not in the run list are fixed at their baseline values (below).
+    Parameters not in the run list are fixed at their baseline values (below); zeta_scale
+    takes the model default (0.015) unless the run list has a zeta_scale column.
 
     Usage (from the repository root):
       one chunk of a run list on a cluster node:  experiments/global_sa/slurm_run.sh
@@ -82,6 +84,7 @@ const FIXED = (acpt_score = 200.0, add_agents = true, rho = 4.0, alpha = 150.0, 
         density_map = maps.nvm, m_fgrote = maps.m_fgrote, m_fmiddel = maps.m_fmiddel,
         m_fklein = maps.m_fklein, m_feklein = maps.m_feklein, gev_list = gev_list,
         lambda = Float64(p.lambda), delta = Float64(p.delta),
+        (hasproperty(p, :zeta_scale) ? (; zeta_scale = Float64(p.zeta_scale)) : (;))...,
     )
     for _ in 1:tot_step
         model_step!(model)        # writes the Parquet output at the last step
