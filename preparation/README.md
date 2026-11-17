@@ -27,12 +27,12 @@ model grid as described in the SI. TODO: housing-density source, preprocessing s
 |---|---|
 | `gev_config_static_2500.csv` | the flood-severity series used in every simulation of the paper: one column per scenario (`set0` to `set4`), one row per month, 2,500 months. Month *t* of a run reads row *t*, so all runs and seeds share the same flood sequence. |
 | `gev_scenario_parameters.py` | the GEV parameters of the four flood scenarios and the tier probabilities in Table 1 |
-| `generate_gev_series.py` | draws a new series of the same form from a seeded generator (written to `output/gev/`) |
+| `generate_gev_series.py` | generates the series from its seed (written to `output/gev/`) and checks it against `gev_config_static_2500.csv` |
 
-`gev_config_static_2500.csv` is the reference file: every simulation of the paper uses this
-exact series. It was drawn once from the scenario distributions with an unseeded random state,
-so it cannot be regenerated; `generate_gev_series.py` produces new, reproducible series for
-simulations with another flood history and never overwrites the reference.
+Every simulation of the paper reads `gev_config_static_2500.csv`. `generate_gev_series.py`
+draws it from the scenario distributions with NumPy's MT19937 generator and the seed in the
+script, and reproduces the file byte for byte in the locked environment (scipy 1.11.4; other
+scipy versions round `genextreme.ppf` differently in the last bits of a few values).
 
 ## `initialization/`
 

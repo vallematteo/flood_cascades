@@ -108,7 +108,7 @@ The cascade timings are from the log of an identical design run on 2026-11-05 (j
 
 | Input | File | Produced by |
 |---|---|---|
-| flood-severity series (2,500 months per scenario) | `preparation/gev/gev_config_static_2500.csv` | fixed reference input of every simulation in the paper; new seeded series: `uv run python preparation/gev/generate_gev_series.py` |
+| flood-severity series (2,500 months per scenario) | `preparation/gev/gev_config_static_2500.csv` | `uv run python preparation/gev/generate_gev_series.py` (from its seed; checks the result against the file) |
 | GEV scenario parameters and tier probabilities | `preparation/gev/gev_scenario_parameters.py` | `python preparation/gev/gev_scenario_parameters.py` |
 | CBS tables 85887NED (income deciles) and 80590NED (unemployment) | `preparation/initialization/cbs/<table>_<pull date>.csv` | `python preparation/initialization/download_cbs.py` |
 | baseline m, ε (with s.e.), exp_lb, η (SI, Baseline parametrisation) | `preparation/initialization/baseline_parameters.csv` | `python preparation/initialization/baseline_parameters.py` |
