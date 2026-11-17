@@ -7,31 +7,27 @@ to these files.
 
 `.csv.gz` files are gzip-compressed CSV; pandas reads them directly (`pd.read_csv`).
 
-> TODO: the reduction scripts of `abc_calibration`, `global_sa` and `cascades_rnet` (except
-> `fcl_cells`) are being ported into `experiments/`; the paths below name their final location.
-
 ## `abc_calibration/`
 
 Calibration at the no-flood scenario (rejection ABC). Run on a SLURM cluster, 2026-11-04.
 
 | File | Content | Produced by |
 |---|---|---|
-| `design.csv` | the 1,001 parameter combinations (one row per `sample_id`): the points of a scrambled Sobol' sequence of 2^13 points (`raw_index`) on the sensitivity-analysis ranges with beta1 - beta2 >= 1/2 | `experiments/abc_calibration/design.py` (TODO) |
-| `runs.csv` | one row per run (combination x 10 seeds): parameters, foreclosure and distress counts, mean active population, `rate_tot` (annual foreclosures per 100 active mortgages) and `arrears_fin` (share of households in financial distress) | the distress reduction (TODO) |
+| `design.csv` | the 1,001 parameter combinations (one row per `sample_id`): the points of a scrambled Sobol' sequence of 2^13 points (`raw_index`) on the sensitivity-analysis ranges with beta1 - beta2 >= 1/2 | `experiments/abc_calibration/design.py` |
+| `runs_set0.csv.gz` | one row per run (combination x 10 seeds): parameters, trigger and foreclosure counts by channel, mean active mortgages, `rate_tot` (annual foreclosures per 100 active mortgages) and `arrears_fin` (annual share of households in financial distress, %) | `experiments/global_sa/reduce.py --runs-only` |
 
 ## `global_sa/`
 
-Global sensitivity analysis: Saltelli design of 3,328 parameter vectors x 10 seeds x 5 flood
-scenarios (166,400 runs). Run on a SLURM cluster, 2026-10-28 to 2026-10-29.
+Global sensitivity analysis: Saltelli design of 3,328 parameter vectors x 5 flood scenarios
+x 10 seeds (166,400 runs). Run on a SLURM cluster, 2026-10-28 to 2026-10-29.
 
 | File | Content | Produced by |
 |---|---|---|
-| `design/problem_definition.csv` | parameter names and sampling ranges | design script (TODO) |
-| `design/saltelli_matrix.csv` | the 3,328 parameter vectors, by `saltelli_sample_id` | design script (TODO) |
-| `counts/statistic_outputs_set{0-4}.csv` | per vector and flood scenario (`set`): foreclosure counts by channel (`n_financial`, `n_strategic`, `n_total`) | count reduction (TODO) |
-| `pooled/statistic_outputs_set{0-4}.csv` | per vector, seeds pooled: share of financial foreclosures and distributional statistics | pooled reduction (TODO) |
-| `distress/statistic_outputs_set{0-4}.csv`, `distress/distress_outputs_set{0-4}.csv` | per vector: distress and forbearance statistics (mean distress months per household, forbearance shares) | distress reduction (TODO) |
-| `distress/rates_runs_set{0-4}.csv.gz` | one row per run: parameters, foreclosure and distress counts, mean active population, annual rates | distress reduction (TODO) |
+| `design/problem_definition.csv` | parameter names and sampling ranges | `experiments/global_sa/design.py` |
+| `design/saltelli_matrix.csv` | the 3,328 parameter vectors, by `saltelli_sample_id` | `experiments/global_sa/design.py` |
+| `design/design_config.csv` | the five candidate designs, their centered L2-discrepancy, the chosen sampling seed | `experiments/global_sa/design.py` |
+| `runs_set{0-4}.csv.gz` | one row per run in scenario 0 to 4: parameters, trigger and foreclosure counts by channel, mean active mortgages, annual foreclosure rates and distress shares | `experiments/global_sa/reduce.py` |
+| `vectors_set{0-4}.csv` | one row per parameter vector in scenario 0 to 4, seeds pooled: foreclosures per run by channel (`n_financial`, `n_strategic`, `n_total`), share of financial foreclosures (`perc_fin`), mean distress months per household (`mean_months`) | `experiments/global_sa/reduce.py` |
 
 ## `cascades_rnet/`
 
@@ -41,10 +37,10 @@ SLURM cluster, 2026-11-10.
 
 | File | Content | Produced by |
 |---|---|---|
-| `runs_all.csv.gz` | one row per run: design block, scenario, lambda, kappa, beta2, vartheta, delta, seed, foreclosure counts and rates by channel | run reduction (TODO) |
-| `paired_seed.csv.gz` | per seed: flooded runs against the S0 run of the same seed | run reduction (TODO) |
-| `sizes_by_run.csv.gz`, `trees_by_run.csv.gz` | foreclosure cascades reconstructed as weighted trees: cascade sizes per run, and tree counts per run | cascade reconstruction (TODO) |
-| `af_runs.csv`, `af_sizes_by_run.csv` | attribution-free spatio-temporal clusters of foreclosures, per run and their sizes | attribution-free clustering (TODO) |
+| `runs_all.csv.gz` | one row per run: design block, scenario, lambda, kappa, beta2, vartheta, delta, seed, foreclosure counts and rates by channel | `experiments/cascades_rnet/reduce_runs.py` |
+| `paired_seed.csv.gz` | per seed: flooded runs against the S0 run of the same seed | `experiments/cascades_rnet/reduce_runs.py` |
+| `sizes_by_run.csv.gz`, `trees_by_run.csv.gz` | foreclosure cascades reconstructed as weighted trees: cascade sizes per run, and tree counts per run | `experiments/cascades_rnet/reconstruct_cascades.py` |
+| `af_runs.csv`, `af_sizes_by_run.csv` | attribution-free spatio-temporal clusters of foreclosures, per run and their sizes | `experiments/cascades_rnet/cluster_attribution_free.py` |
 | `fcl_cells.csv.gz` | post-warm-up foreclosures per (run, map cell) for the delta = 0 runs drawn in the maps of SI Fig. 2: `run_id, x, y, n_fcl` | `experiments/cascades_rnet/reduce_fcl_cells.py` |
 
 ## `foreclosure_timing/`

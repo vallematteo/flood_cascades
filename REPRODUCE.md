@@ -17,7 +17,7 @@ to the files in `data/`.
 
 | Experiment | Purpose | Runs | Where | Cost |
 |---|---|---|---|---|
-| `abc_calibration` | calibration at the no-flood scenario (rejection ABC) | TODO | SLURM cluster | TODO core-hours |
+| `abc_calibration` | calibration at the no-flood scenario (rejection ABC) | 10,010 | SLURM cluster | TODO core-hours |
 | `global_sa` | global sensitivity analysis (Saltelli design, Sobol' and PAWN indices) | 166,400 | SLURM cluster | TODO core-hours |
 | `cascades_rnet` | foreclosure cascades and the net reproduction number, by flood scenario and spillover intensity | 65,520 | SLURM cluster | TODO core-hours |
 | `foreclosure_timing` | age and distress history at foreclosure | 750 | laptop | TODO (median 7.9 s per run) |
@@ -39,8 +39,8 @@ about 1.2 GB: 1.10 GB for a single run, 1.15 GB for 8 consecutive runs of the he
 (S4, delta = 0.25), measured with `/usr/bin/time -l` on an Apple M3 Pro, Julia 1.10.4, Julia
 runtime and compiled code included. A node therefore needs about 1.2 GB per worker plus a few
 GB for the main process: 192 workers fit in about 240 GB, and any machine with at least 1.5 GB
-per core can run one worker per core. TODO: memory of the sensitivity-analysis runner, which
-also writes Parquet output.
+per core can run one worker per core. The runner of the sensitivity analysis and the
+calibration, which also writes Parquet output, peaks at 0.91 GB per worker (110 runs).
 
 **Time.** One run takes 8 to 9 s on one core, on a Genoa node and on an Apple M3 Pro alike.
 
