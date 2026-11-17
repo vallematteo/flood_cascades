@@ -19,10 +19,10 @@ import pandas as pd
 from scipy import stats
 
 from utils import (ABC_PARAMS, CALIBRATED, EMPIRICAL_BANDS, PREPARATION, ROOT, YEARS, abc_bootstrap, abc_distance,
-                   abc_ks, abc_position, abc_results, compare_methods, gsa_problem, load_abc, load_cascade_runs,
+                   abc_results, compare_methods, gsa_outcome, gsa_problem, load_attribution_free, load_cascade_runs,
                    load_cascade_sizes, load_gsa_runs, load_gsa_vectors, load_paired_seed, load_problem,
-                   load_saltelli_matrix, load_timing, pawn_indices, pawn_threshold, r_by_scenario, read,
-                   size_density, sobol_indices, sparks_and_sweeps, summarise)
+                   load_saltelli_matrix, load_timing, map_fields, pawn_design, pawn_indices, pawn_threshold,
+                   r_by_scenario, read, size_density, sobol_indices, sparks_and_sweeps, summarise)
 
 ROWS = []
 
@@ -290,11 +290,310 @@ def timing():
     number(w, "strategic share S1-S4, beta3 = 0.5 (%)", strat_share(b3[b3.beta3 == 0.5]), 62, 0)
 
 
+# ─── Results: spatial pattern (SI Fig. 2) and SI population and composition ──────────────
+
+def maps_and_composition():
+    housing, region, band, rate0, rate4, ratio = map_fields(4, 0.05)
+    w = "Main text, SI Fig. 2"
+    number(w, "local rate S4 / S0 inside the flood extent, median (about fivefold)", 2 ** np.nanmedian(ratio[band > 0]), 5, 0)
+    number(w, "local rate S4 / S0 outside the flood extent, median (less than 1.5)", float(2 ** np.nanmedian(ratio[band == 0]) < 1.5), 1, 0)
+
+    runs = load_gsa_runs()
+    by_set = runs.groupby(["saltelli_sample_id", "setting"]).mean_active.mean().unstack()
+    par = runs.groupby("saltelli_sample_id")[["beta1", "beta2", "delta"]].first()
+    par["gap"], par["pop0"] = par.beta1 - par.beta2, by_set[0]
+    w = "SI Fig. 3, population"
+    dr = par[par.gap >= 0.5]
+    number(w, "vectors with beta1 - beta2 >= 1/2", len(dr), 1162, 0)
+    number(w, "their smallest population at S0", dr.pop0.min(), 514, 0)
+    number(w, "their largest population at S0", dr.pop0.max(), 2709, 0)
+    number(w, "median population, gap >= 1/2, delta <= 0.15", dr[dr.delta <= 0.15].pop0.median(), 2550, 0)
+    number(w, "median population, gap >= 1/2, delta >= 0.35", dr[dr.delta >= 0.35].pop0.median(), 1566, 0)
+    near = par[(par.gap > 0.4) & (par.gap < 0.5)]
+    number(w, "median population, 0.4 < gap < 0.5", near.pop0.median(), 1229, 0)
+    number(w, "median population, gap <= 0.1", par[par.gap <= 0.1].pop0.median(), 16, 0)
+    number(w, "median population, 0.4 < gap < 0.5, delta <= 0.15", near[near.delta <= 0.15].pop0.median(), 2341, 0)
+    number(w, "median population, 0.4 < gap < 0.5, delta >= 0.35", near[near.delta >= 0.35].pop0.median(), 622, 0)
+
+    rate = runs.groupby(["saltelli_sample_id", "setting"]).rate_tot.mean().unstack()
+    number("SI Default composition", "vectors with a higher rate at S4 than at S0", (rate[4] > rate[0]).sum(), 3286, 0)
+    number("SI Default composition", "vectors in the design", len(rate), 3328, 0)
+
+    v = load_gsa_vectors().merge(load_saltelli_matrix()[["saltelli_sample_id", "beta1", "beta2", "delta"]], on="saltelli_sample_id")
+    v["gap"] = v.beta1 - v.beta2
+    small = v[v.delta <= 0.15].copy()
+    small["bin"] = pd.qcut(small.gap, 12)
+    share = lambda g: 100 * g.n_strategic.sum() / g.n_total.sum()
+    strat = small.groupby(["bin", "setting"], observed=True)[["n_strategic", "n_total"]].apply(share).unstack()
+    active = runs.groupby(["setting", "saltelli_sample_id"], as_index=False).mean_active.mean()
+    act = small[["setting", "saltelli_sample_id", "bin"]].merge(active).groupby(["bin", "setting"], observed=True).mean_active.mean().unstack()
+    narrow = [b for b in strat.index if b.right <= 0.46]
+    w = "SI Default composition"
+    number(w, "strategic share in the bins below 0.46, lowest over scenarios (above 92%)", float(strat.loc[narrow].min().min() > 92), 1, 0)
+    number(w, "active mortgages in the bins below 0.46, largest (below 1,600)", float(act.loc[narrow].max().max() < 1600), 1, 0)
+    widest = strat.index[-1]
+    number(w, "strategic share in the widest bin, lowest (%)", strat.loc[widest].min(), 1.5, 1)
+    number(w, "strategic share in the widest bin, highest (%)", strat.loc[widest].max(), 3, 0)
+    number(w, "active mortgages in the widest bin (about 2,500)", round(act.loc[widest].mean(), -2), 2500, 0)
+    number(w, "largest rise of the strategic share S4 - S0 within a bin (pp)", (strat[4] - strat[0]).max(), 13, 0)
+    r = v[(v.gap >= 0.5) & (v.setting == 0)]
+    number(w, "strategic share S0, gap >= 1/2, 0.15 < delta <= 0.35 (%)", share(r[(r.delta > 0.15) & (r.delta <= 0.35)]), 63, 0)
+    number(w, "strategic share S0, gap >= 1/2, delta > 0.35 (%)", share(r[r.delta > 0.35]), 83, 0)
+
+
+# ─── SI, Global sensitivity analysis ─────────────────────────────────────────────────────
+
+def sensitivity():
+    names = gsa_problem()["names"]
+    sob, paw, thr = {}, {}, {}
+    for Y in ("perc_fin", "n_financial", "n_strategic", "mean_months"):
+        si = sobol_indices(Y)
+        sob[Y] = pd.concat([pd.DataFrame({"param": names, "setting": s, "S1": d["S1"], "S1_conf": d["S1_conf"],
+                                          "ST": d["ST"], "ST_conf": d["ST_conf"]}) for s, d in si.items()])
+        pw = pawn_indices(Y)
+        paw[Y] = pd.concat([pd.DataFrame({"param": names, "setting": s, "T": np.asarray(d["median"], float)})
+                            for s, d in pw.items()])
+        thr[Y] = pawn_threshold(Y)
+        paw[Y]["sig"] = paw[Y]["T"] > thr[Y]
+
+    def rng(table, Y, p, col):
+        x = table[Y][table[Y].param == p][col]
+        return x.min(), x.max()
+
+    def both(where, what, lo_hi, lo, hi, dec=2):
+        number(where, what + ", lowest", lo_hi[0], lo, dec)
+        number(where, what + ", highest", lo_hi[1], hi, dec)
+
+    w = "SI Sensitivity analysis"
+    X = pawn_design()
+    number(w, "correlation of beta1 and beta2 on the A and B blocks", np.corrcoef(X[:, 1], X[:, 2])[0, 1], 0.36)
+    sub = (X[:, 1] > 0.5) & (X[:, 2] < 0.5)
+    number(w, "sub-region beta1 > 0.5, beta2 < 0.5: design points", sub.sum(), 322, 0)
+    number(w, "sub-region: design points of the A and B blocks", len(X), 512, 0)
+    number(w, "sub-region: correlation of beta1 and beta2", np.corrcoef(X[sub, 1], X[sub, 2])[0, 1], -0.02)
+    from SALib.analyze import pawn as salib_pawn
+    problem = gsa_problem()
+    subT = {}
+    for Y in ("perc_fin", "n_financial", "n_strategic"):
+        subT[Y] = pd.concat([pd.DataFrame({"param": names, "setting": s, "T": np.asarray(salib_pawn.analyze(
+            problem, X[sub], gsa_outcome(s, Y)[:len(X)][sub], S=10, seed=0)["median"], float)}) for s in range(5)])
+    allT = pd.concat(subT.values(), keys=subT.keys(), names=["Y"]).reset_index()
+    gap = allT.pivot_table(index=["Y", "setting"], columns="param", values="T")
+    both(w, "sub-region: T_beta1 - T_beta2 over outcomes and scenarios", ((gap.beta1 - gap.beta2).min(), (gap.beta1 - gap.beta2).max()), 0.09, 0.13)
+    both(w, "sub-region: T_beta1, share of financial defaults", rng(subT, "perc_fin", "beta1", "T"), 0.32, 0.33)
+    both(w, "sub-region: T_beta2, share of financial defaults", rng(subT, "perc_fin", "beta2", "T"), 0.22, 0.23)
+    both(w, "sub-region: T_beta2, all outcomes", (gap.beta2.min(), gap.beta2.max()), 0.20, 0.23)
+    both(w, "sub-region: T_kappa, all outcomes", (gap.kappa.min(), gap.kappa.max()), 0.21, 0.23)
+    both(w, "sub-region: T_delta, all outcomes", (gap.delta.min(), gap.delta.max()), 0.18, 0.26)
+    gm = gap.loc[["perc_fin", "n_financial"]].m
+    both(w, "sub-region: T_m, share of financial defaults and n_financial", (gm.min(), gm.max()), 0.20, 0.27)
+
+    w = "SI GSA results"
+    for Y, n in [("perc_fin", 19), ("n_financial", 10), ("n_strategic", 16)]:
+        number(w, f"significant PAWN comparisons of 55, {Y}", paw[Y].sig.sum(), n, 0)
+    below = pd.concat([paw[Y][~paw[Y].sig] for Y in ("perc_fin", "n_financial", "n_strategic")])
+    both(w, "T of the comparisons below the threshold", (below["T"].min(), below["T"].max()), 0.07, 0.15)
+
+    pf, nf, ns, mm = "perc_fin", "n_financial", "n_strategic", "mean_months"
+    both(w, "S1 of beta1, share of financial defaults", rng(sob, pf, "beta1", "S1"), 0.35, 0.37)
+    both(w, "S1 of beta2, share of financial defaults", rng(sob, pf, "beta2", "S1"), 0.24, 0.26)
+    clear = sob[pf].assign(c=sob[pf].S1 - sob[pf].S1_conf > 0).groupby("param").c.sum()
+    number(w, "parameters whose S1 interval clears zero at every scenario, share of financial defaults (beta1, beta2)",
+           float(set(clear[clear == 5].index) == {"beta1", "beta2"}), 1, 0)
+    s1sum = sob[pf].groupby("setting").S1.sum()
+    both(w, "sum of the first-order indices, share of financial defaults", (s1sum.min(), s1sum.max()), 0.73, 0.78)
+    both(w, "ST of beta2, share of financial defaults", rng(sob, pf, "beta2", "ST"), 0.44, 0.46)
+    both(w, "S1 of kappa, share of financial defaults", rng(sob, pf, "kappa", "S1"), 0.04, 0.05)
+    k = sob[pf][sob[pf].param == "kappa"]
+    number(w, "S1 interval of kappa includes zero at every scenario (1 = yes)", float(((k.S1 - k.S1_conf) <= 0).all()), 1, 0)
+    both(w, "ST of kappa, share of financial defaults", rng(sob, pf, "kappa", "ST"), 0.19, 0.20)
+    number(w, "S1 and ST of beta3 and varepsilon, share of financial defaults, all below about 0.03 (1 = yes)",
+           float(sob[pf][sob[pf].param.isin(["beta3", "varepsilon"])][["S1", "ST"]].max().max() <= 0.03), 1, 0)
+    number(w, "scenarios with T_kappa above the threshold, share of financial defaults", paw[pf][paw[pf].param == "kappa"].sig.sum(), 3, 0)
+    number(w, "scenarios with T_beta3 above the threshold, share of financial defaults", paw[pf][paw[pf].param == "beta3"].sig.sum(), 1, 0)
+    both(w, "S1 of beta1, n_strategic", rng(sob, ns, "beta1", "S1"), 0.47, 0.48)
+    both(w, "S1 of beta1, n_financial", rng(sob, nf, "beta1", "S1"), 0.24, 0.26)
+    both(w, "ST of beta1, n_financial", rng(sob, nf, "beta1", "ST"), 0.54, 0.55)
+    both(w, "ST of beta2, n_financial", rng(sob, nf, "beta2", "ST"), 0.26, 0.30)
+    both(w, "ST of beta2, n_strategic", rng(sob, ns, "beta2", "ST"), 0.29, 0.31)
+    number(w, "ST of beta3, both counts, largest", max(rng(sob, nf, "beta3", "ST")[1], rng(sob, ns, "beta3", "ST")[1]), 0.06)
+    leads = all((t.groupby("setting").apply(lambda g: g.set_index("param")[c].idxmax(), include_groups=False) == "beta1").all()
+                for Y in (pf, nf, ns) for t, c in ((sob[Y], "ST"), (paw[Y], "T")))
+    number(w, "beta1 has the largest ST and T at every scenario, all three outcomes (1 = yes)", float(leads), 1, 0)
+    both(w, "ST of beta1, share of financial defaults", rng(sob, pf, "beta1", "ST"), 0.58, 0.60)
+    both(w, "T of beta1, share of financial defaults", rng(paw, pf, "beta1", "T"), 0.29, 0.30)
+    both(w, "ST of beta1, n_strategic", rng(sob, ns, "beta1", "ST"), 0.59, 0.60)
+    both(w, "T of beta1, n_strategic", rng(paw, ns, "beta1", "T"), 0.29, 0.29)
+    b2 = pd.concat([sob[Y][sob[Y].param == "beta2"] for Y in (pf, nf, ns)])
+    both(w, "S1 of beta2, three outcomes", (b2.S1.min(), b2.S1.max()), 0.19, 0.26)
+    both(w, "ST of beta2, three outcomes", (b2.ST.min(), b2.ST.max()), 0.26, 0.46)
+    pb2 = pd.concat([paw[Y][paw[Y].param == "beta2"] for Y in (pf, nf, ns)])
+    both(w, "T of beta2, three outcomes", (pb2["T"].min(), pb2["T"].max()), 0.14, 0.15)
+    number(w, "T of beta2 below the threshold everywhere (1 = yes)", float(not pb2.sig.any()), 1, 0)
+    both(w, "ST of delta, share of financial defaults", rng(sob, pf, "delta", "ST"), 0.26, 0.27)
+    d1 = pd.concat([sob[Y][sob[Y].param == "delta"] for Y in (pf, ns)])
+    both(w, "S1 of delta, share of financial defaults and n_strategic", (d1.S1.min(), d1.S1.max()), 0.08, 0.09)
+    for Y, t in [(pf, 0.17), (ns, 0.19)]:
+        number(w, f"T_delta above the threshold at every scenario, {Y} (1 = yes)", float(paw[Y][paw[Y].param == "delta"].sig.all()), 1, 0)
+        both(w, f"T of delta, {Y}", rng(paw, Y, "delta", "T"), t, t)
+    lam = pd.concat([sob[Y][sob[Y].param == "lambda"] for Y in (pf, nf, ns)])
+    number(w, "ST of lambda, three outcomes, largest", lam.ST.max(), 0.01)
+    plam = pd.concat([paw[Y][paw[Y].param == "lambda"] for Y in (pf, nf, ns)])
+    both(w, "T of lambda, three outcomes", (plam["T"].min(), plam["T"].max()), 0.07, 0.10)
+    both(w, "ST of m, share of financial defaults", rng(sob, pf, "m", "ST"), 0.02, 0.03)
+    number(w, "T_m above the threshold at every scenario, share of financial defaults (1 = yes)", float(paw[pf][paw[pf].param == "m"].sig.all()), 1, 0)
+    both(w, "T of m, share of financial defaults", rng(paw, pf, "m", "T"), 0.18, 0.21)
+    number(w, "T_m above the threshold at every scenario, n_financial (1 = yes)", float(paw[nf][paw[nf].param == "m"].sig.all()), 1, 0)
+    both(w, "T of m, n_financial", rng(paw, nf, "m", "T"), 0.20, 0.22)
+    both(w, "T of m, n_strategic", rng(paw, ns, "m", "T"), 0.14, 0.16)
+    number(w, "scenarios with T_m above the threshold, n_strategic", paw[ns][paw[ns].param == "m"].sig.sum(), 1, 0)
+    both(w, "ST of m, n_financial", rng(sob, nf, "m", "ST"), 0.20, 0.22)
+    both(w, "ST of varepsilon, n_financial", rng(sob, nf, "varepsilon", "ST"), 0.18, 0.20)
+    number(w, "S1 of m and varepsilon, n_financial, at most 0.04 (1 = yes)",
+           float(sob[nf][sob[nf].param.isin(["m", "varepsilon"])].S1.max() <= 0.04), 1, 0)
+    number(w, "T_varepsilon below the threshold, both counts (1 = yes)",
+           float(not pd.concat([paw[Y][paw[Y].param == "varepsilon"] for Y in (nf, ns)]).sig.any()), 1, 0)
+    both(w, "T of varepsilon, n_financial", rng(paw, nf, "varepsilon", "T"), 0.12, 0.12)
+    for p, t in [("delta", 0.19), ("kappa", 0.17)]:
+        number(w, f"T_{p} above the threshold at every scenario, n_strategic (1 = yes)", float(paw[ns][paw[ns].param == p].sig.all()), 1, 0)
+        both(w, f"T of {p}, n_strategic", rng(paw, ns, p, "T"), t, t)
+        both(w, f"ST of {p}, n_strategic", rng(sob, ns, p, "ST"), 0.22, 0.22)
+    both(w, "S1 of kappa, n_strategic", rng(sob, ns, "kappa", "S1"), 0.13, 0.13)
+    k = sob[ns][sob[ns].param == "kappa"]
+    number(w, "S1 interval of kappa clears zero, n_strategic (1 = yes)", float(((k.S1 - k.S1_conf) > 0).all()), 1, 0)
+    dk = paw[nf][paw[nf].param.isin(["delta", "kappa"])]
+    number(w, "T_delta and T_kappa below the threshold, n_financial (1 = yes)", float(not dk.sig.any()), 1, 0)
+    both(w, "T of delta and kappa, n_financial", (dk["T"].min(), dk["T"].max()), 0.13, 0.14)
+    sk = sob[nf][sob[nf].param.isin(["delta", "kappa"])]
+    both(w, "ST of delta and kappa, n_financial", (sk.ST.min(), sk.ST.max()), 0.14, 0.17)
+
+    w = "SI Distress months"
+    both(w, "S1 of beta1, mean distress months", rng(sob, mm, "beta1", "S1"), 0.30, 0.33)
+    both(w, "T of beta1, mean distress months", rng(paw, mm, "beta1", "T"), 0.30, 0.30)
+    both(w, "ST of beta2, mean distress months", rng(sob, mm, "beta2", "ST"), 0.37, 0.37)
+    both(w, "S1 of beta2, mean distress months", rng(sob, mm, "beta2", "S1"), 0.05, 0.09)
+    clear = sob[mm].assign(c=sob[mm].S1 - sob[mm].S1_conf > 0).groupby("param").c.sum()
+    number(w, "parameters other than beta1 whose S1 interval clears zero at every scenario (kappa only)",
+           float(set(clear[clear == 5].index) - {"beta1"} == {"kappa"}), 1, 0)
+    both(w, "S1 of kappa, mean distress months", rng(sob, mm, "kappa", "S1"), 0.08, 0.08)
+    for p in ("beta1", "kappa"):
+        number(w, f"T_{p} above the threshold at every scenario (1 = yes)", float(paw[mm][paw[mm].param == p].sig.all()), 1, 0)
+    both(w, "T of kappa, mean distress months", rng(paw, mm, "kappa", "T"), 0.16, 0.17)
+    number(w, "scenarios with T_beta3 above the threshold", paw[mm][paw[mm].param == "beta3"].sig.sum(), 4, 0)
+
+
+# ─── Results and SI: foreclosure cascades ────────────────────────────────────────────────
+
+def cascades():
+    ps = load_paired_seed(vartheta=0.05)
+    base = ps[(ps.kappa == 10) & (ps.beta2 == 0.5)]
+    s0 = base[base.setting == 0]
+    t0 = summarise(s0, ["delta"], ["R_net", "R_gross"]).merge(
+        summarise(s0.assign(ratio=s0.rate_tot / s0.rate0), ["delta"], ["ratio"]), on="delta").set_index("delta")
+    w = "Main text, Fig. 4"
+    number(w, "multiplier M at S0, delta = 0.15", t0.ratio[0.15], 1.50)
+    number(w, "multiplier M at S0, delta = 0.2", t0.ratio[0.2], 4.59)
+    flooded, s0r, _ = r_by_scenario(ps, stat="M_net")
+    m15 = flooded[np.isclose(flooded.delta, 0.15)]
+    number(w, "multiplier M at delta = 0.15, lowest over S1-S4", m15.R_net.min(), 1.74)
+    number(w, "multiplier M at delta = 0.15, highest over S1-S4", m15.R_net.max(), 2.02)
+
+    methods = compare_methods()
+    tree = methods[methods.method == "tree"].set_index(["group", "delta"]).share
+    for g, d, printed in [("S0", 0.125, 8), ("S0", 0.2, 77), ("S0", 0.15, 31), ("S4", 0.15, 45)]:
+        number(w, f"share of foreclosures in large cascades, {g}, delta = {d} (%)", 100 * tree.loc[(g, d)], printed, 0)
+    pk = methods[(methods.delta >= 0.1125 - 1e-9) & methods.method.isin(["tree", "comp"])].sweep_peak
+    number("SI Cascade sizes", "peak of the large-cascade mode, lowest", pk.min(), 113, 0)
+    number("SI Cascade sizes", "peak of the large-cascade mode, highest", pk.max(), 175, 0)
+    wide = methods[methods.delta > 0].pivot_table(index=["group", "delta"], columns="method", values="share")
+    number("SI Cascade sizes", "largest difference of the attribution-free share from either reconstruction (pp, within 2)",
+           float(100 * max((wide.af - wide.tree).abs().max(), (wide.af - wide.comp).abs().max()) <= 2), 1, 0)
+    af_sizes, af_runs = load_attribution_free()
+    _, _, af_peaks = size_density(af_sizes, af_runs[["run_id", "setting", "lambda", "delta", "seed"]])
+    number("Main text, Fig. 4", "attribution-free large-cascade mode at delta = 0 (scenario groups with one)",
+           af_peaks[(af_peaks.delta == 0)].sweep_peak.notna().sum(), 0, 0)
+    sizes, meta = load_cascade_sizes()
+    _, _, peaks = size_density(sizes, meta)
+    sp = sparks_and_sweeps(sizes, meta, peaks)
+    sp = sp[sp.method == "tree"].set_index(["group", "delta"])
+    number("SI Cascade sizes", "large cascades per run, S4 / S0, delta = 0.15 (about seven)",
+           sp.sweeps_per_run[("S4", 0.15)] / sp.sweeps_per_run[("S0", 0.15)], 7, 0)
+    number("SI Cascade sizes", "large cascades in the 20 S0 runs, delta = 0.125", 20 * sp.sweeps_per_run[("S0", 0.125)], 4, 0)
+
+    w = "SI Cascade method"
+    low = t0[(t0.index > 0) & (t0.index <= 0.125)]
+    number(w, "S0: R_net interval contains zero for every delta <= 0.125 (1 = yes)",
+           float(((low.R_net_lo <= 0) & (low.R_net_hi >= 0)).all()), 1, 0)
+    number(w, "S0: R_gross at delta = 0.125", t0.R_gross[0.125], 0.15)
+    rn, _, w_seed = r_by_scenario(ps, stat="R_net")
+    pv = (w_seed.groupby(["setting", "delta"]).dR_net.apply(lambda x: stats.ttest_1samp(x, 0).pvalue)
+          .rename("p").reset_index())
+    rn = rn.merge(pv, on=["setting", "delta"])
+    rn = rn[rn.delta > 0].copy()
+    order = np.argsort(rn.p.to_numpy())
+    holm = np.zeros(len(rn), bool)
+    for rank, i in enumerate(order):
+        if rn.p.to_numpy()[i] <= 0.05 / (len(rn) - rank):
+            holm[i] = True
+        else:
+            break
+    rn["holm"] = holm
+    number(w, "combinations of scenario and delta > 0", len(rn), 44, 0)
+    early = rn[rn.delta <= 0.05 + 1e-9]
+    number(w, "Delta R_net interval contains zero for every delta <= 0.05 (1 = yes)",
+           float(((early.dR_net_lo <= 0) & (early.dR_net_hi >= 0)).all()), 1, 0)
+    mid = rn[(rn.delta >= 0.1 - 1e-9) & (rn.delta <= 0.175 + 1e-9)]
+    number(w, "combinations with delta in [0.1, 0.175]", len(mid), 20, 0)
+    number(w, "of which the Delta R_net interval lies above zero", (mid.dR_net_lo > 0).sum(), 17, 0)
+    number(w, "of which Holm-significant (correction over all 44 combinations)", mid.holm.sum(), 5, 0)
+    top = rn.loc[rn.dR_net.idxmax()]
+    number(w, "largest Delta R_net: scenario", top.setting, 4, 0)
+    number(w, "largest Delta R_net: delta", top.delta, 0.15)
+    number(w, "R_net at S4, delta = 0.15", top.R_net, 0.48)
+    number(w, "R_net at S0, delta = 0.15", top.R_net_S0, 0.23)
+    number(w, "Delta R_net negative at delta = 0.25 in every scenario (1 = yes)", float((rn[np.isclose(rn.delta, 0.25)].dR_net < 0).all()), 1, 0)
+
+    ps_all = load_paired_seed()
+    def r_curve(vt, kappa, beta2):
+        d = ps_all[(ps_all.vartheta == vt) & (ps_all.kappa == kappa) & (ps_all.beta2 == beta2) & (ps_all.delta > 0)]
+        wv = pd.concat([d[d.setting == 0].groupby(["delta", "seed"]).R_net.mean().rename("S0"),
+                        d[d.setting > 0].groupby(["delta", "seed"]).R_net.mean().rename("flooded")], axis=1).reset_index()
+        wv["dR"] = wv.flooded - wv.S0
+        return summarise(wv, ["delta"], ["dR"])
+    c3 = r_curve(0.05, 3, 0.5)
+    number(w, "kappa = 3: Delta R_net interval contains zero at every delta (1 = yes)",
+           float(((c3.dR_lo <= 0) & (c3.dR_hi >= 0)).all()), 1, 0)
+    c7 = r_curve(0.05, 10, 0.3)
+    number(w, "gap 0.7: Delta R_net interval above zero only at delta = 0.175 (1 = yes)",
+           float(c7[c7.dR_lo > 0].delta.round(4).tolist() == [0.175]), 1, 0)
+    cors = []
+    for _, g in ps[(ps.setting > 0) & (ps.delta > 0)].groupby(["kappa", "beta2", "delta"]):
+        c = np.corrcoef(g.pivot_table(index="seed", columns=["setting", "lambda"], values="R_net").to_numpy().T)
+        cors.append(c[np.triu_indices_from(c, 1)].mean())
+    number("SI Fig. 10 caption", "mean pairwise correlation of flooded runs sharing a seed, lowest", min(cors), -0.06)
+    number("SI Fig. 10 caption", "mean pairwise correlation of flooded runs sharing a seed, highest", max(cors), 0.08)
+
+    pct = flooded.set_index(["delta", "setting"]).dR_net
+    for d, lo, hi in [(0.125, 12, 27), (0.15, 21, 43), (0.25, -27, -18)]:
+        x = pct.xs(d, level="delta")
+        number(w, f"% change of M under floods at delta = {d}, lowest", x.min(), lo, 0)
+        number(w, f"% change of M under floods at delta = {d}, highest", x.max(), hi, 0)
+
+    # seed as unit (Statistics section)
+    w = "Statistics, seed intervals"
+    m = ps[np.isclose(ps.delta, 0.15) & (ps.kappa == 10) & (ps.beta2 == 0.5)]
+    for s, printed in [(1, 1.74), (4, 2.02)]:
+        number(w, f"multiplier M S{s}, delta = 0.15, mean over seeds", t_mean(m[m.setting == s].groupby("seed").M_net.mean())[0], printed)
+
+
 def main():
     baseline = initialization()
     calibration(baseline)
     rates()
+    maps_and_composition()
     timing()
+    sensitivity()
+    cascades()
 
     tab = pd.DataFrame(ROWS)
     os.makedirs(os.path.join(ROOT, "output"), exist_ok=True)

@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.ticker  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from PIL import Image  # noqa: E402
+from scipy.ndimage import gaussian_filter  # noqa: E402
 from scipy import stats  # noqa: E402
 
 # ─── Paths
@@ -579,3 +581,85 @@ def compare_methods(n_boot=2000, seed=1):
                         share_hi=np.quantile(bs, 0.975), n_seeds=len(a)))
     return pd.DataFrame(out).merge(modes[["method", "group", "delta", "sweep_peak"]],
                                    on=["method", "group", "delta"], how="left")
+
+
+
+# ─── Maps of SI Fig. 2
+
+MAP_BANDWIDTH = 10.0       # kernel standard deviation of the foreclosure maps, in grid cells
+# flood maps from the smallest to the largest extent
+TIERS = [("Minor", "grote.png"), ("Moderate", "middel.png"), ("Severe", "kleine.png"), ("Catastrophic", "extreme_kleine.png")]
+
+def read_map(name):
+    """Same transform as read_map in model/utils.jl: invert grey, scale to [0, 1]."""
+    a = np.asarray(Image.open(os.path.join(PREPARATION, "flood_maps", name)).convert("L"), dtype=float) / 255
+    a = 1.0 - a
+    return a / a.max() if a.max() > 0 else a
+
+
+def flood_bands():
+    """Number of tiers flooding each cell (0..4), after checking the extents are nested."""
+    ext = [read_map(f) > 0 for _, f in TIERS]
+    for (n_small, _), (n_big, _), a, b in zip(TIERS, TIERS[1:], ext, ext[1:]):
+        bad = int((a & ~b).sum())
+        if bad:
+            raise SystemExit(f"Extents not nested: {bad} {n_small} cells outside {n_big}")
+    return sum(e.astype(int) for e in ext)
+
+
+def kde_grid(rows, cols, shape, bw, weights=None):
+    """Gaussian KDE on the grid: point histogram convolved with N(0, bw^2 I), reflecting
+    boundary, so the estimate integrates to the number (or weight) of points."""
+    h = np.zeros(shape)
+    np.add.at(h, (rows, cols), 1.0 if weights is None else weights)
+    return gaussian_filter(h, sigma=bw, mode="reflect", truncate=4.0)
+
+
+def rate_map(runs, fcl, shape, pop_share, bw):
+    """Local annual foreclosure rate (%), defined as the calibration's rate_tot
+    (SA_4/analysis/distress_index_4.py): per run, 100 * foreclosures / mean_active / years,
+    then the mean over seeds. Locally, foreclosures are the run's KDE and mean_active is
+    the run's mean active population times the cell's share of the smoothed placement
+    weight. The mean over runs is one KDE with each point weighted by
+    100 / (n_runs * mean_active_run * years_run)."""
+    w_run = 100 / (len(runs) * runs.mean_active * (runs.tot_step - runs.warmup) / 12)
+    w = fcl.run_id.map(w_run.set_axis(runs.run_id)).to_numpy()
+    num = kde_grid(fcl.y.values - 1, fcl.x.values - 1, shape, bw, weights=w)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rate = num / pop_share
+    # Check: averaging the map over the population gives back the seed-mean rate_tot.
+    print(f"  population-weighted mean of map {np.nansum(rate * pop_share):.3f} %/yr "
+          f"vs seed-mean rate_tot {runs.rate_tot.mean():.3f} %/yr")
+    return rate
+
+
+def load_map_runs(flood_setting):
+    """The runs drawn in the maps (S0 and flood_setting: cascade experiment, main block, delta = 0,
+    kappa = 10, beta1 - beta2 = 0.5, vartheta = 0.05) and their foreclosures per cell."""
+    r = load_cascade_runs()
+    r = r[r.success & (r.block == "main") & np.isclose(r.delta, 0.0) & np.isclose(r.kappa, 10.0)
+          & np.isclose(r.beta2, 0.5) & np.isclose(r.vartheta, 0.05)]
+    cells = read("cascades_rnet/fcl_cells.csv.gz")
+    return {s: (r[r.setting == s], cells[cells.run_id.isin(r.run_id[r.setting == s])]) for s in (0, flood_setting)}
+
+
+def map_fields(flood_setting=4, min_pop=0.05):
+    """Housing density, region, flood bands, local foreclosure rate at S0 and at flood_setting,
+    and their log2 ratio, masked where the smoothed housing density is below min_pop of its maximum."""
+    from scipy.ndimage import binary_closing, binary_fill_holes
+    housing = read_map("nvm_cleaned.png")
+    region = binary_fill_holes(binary_closing(housing > 0, iterations=3))
+    band = np.where(region, flood_bands(), 0)
+    pop_share = kde_grid(*np.nonzero(housing >= 0), housing.shape, MAP_BANDWIDTH, weights=housing[housing >= 0])
+    pop_share /= pop_share.sum()
+    fields = {}
+    for s, (runs, cells) in load_map_runs(flood_setting).items():
+        fcl = cells.loc[cells.index.repeat(cells.n_fcl)]          # one row per foreclosure
+        fields[s] = rate_map(runs, fcl, housing.shape, pop_share, MAP_BANDWIDTH)
+    keep = region & (pop_share >= min_pop * pop_share.max())
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = np.where(keep, np.log2(fields[flood_setting] / fields[0]), np.nan)
+        rate0 = np.where(keep, fields[0], np.nan)
+        rate_flood = np.where(keep, fields[flood_setting], np.nan)
+    ratio[~np.isfinite(ratio)] = np.nan
+    return housing, region, band, rate0, rate_flood, ratio

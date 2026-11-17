@@ -11,32 +11,25 @@ vartheta = 0.05; S0 20 runs, S4 60 runs (lambda in {0.25, 0.5, 0.75}).
 Run:    uv run python figure_S2.py
 Writes: output/figures/figure_S2.png
 """
-import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap, ListedColormap
 from matplotlib.patches import ConnectionPatch, Rectangle
-from PIL import Image
-from scipy.ndimage import binary_closing, binary_fill_holes, gaussian_filter
+from scipy.ndimage import gaussian_filter
 
-from utils import FS, PREPARATION, load_cascade_runs, read, save_figure
+from utils import FS, map_fields, save_figure
 
-MAPS = os.path.join(PREPARATION, "flood_maps")
 plt.rcParams.update({"font.size": FS, "axes.labelweight": "bold",
                      "axes.titleweight": "bold", "axes.titlesize": FS})
 
 FLOOD_SETTING = 4        # scenario compared with S0 in panel (d)
-BANDWIDTH = 10.0         # kernel standard deviation, in grid cells
 MIN_POP = 0.05           # mask the ratio where smoothed housing < this fraction of its maximum
 INSET = (362, 477, 112, 227)   # row0, row1, col0, col1 of the inset of panel (b)
 
 plt.rcParams.update({"font.size": FS, "axes.labelweight": "bold",
                      "axes.titleweight": "bold", "axes.titlesize": FS})
 
-# Smallest to largest extent; tier names as in SI Table flood_severity.
-TIERS = [("Minor", "grote.png"), ("Moderate", "middel.png"),
-         ("Severe", "kleine.png"), ("Catastrophic", "extreme_kleine.png")]
 
 REGION_FILL = "#ececec"
 REGION_EDGE = "#8c8c8c"
@@ -52,47 +45,12 @@ SEQ_RED = ListedColormap(_reds, name="seq_red_fade")
 SEQ_GREY = LinearSegmentedColormap.from_list("seq_grey", ["#f0f0f0", "#969696", "#252525"])
 
 
-def read_map(name):
-    """Same transform as read_map in model/utils.jl: invert grey, scale to [0, 1]."""
-    a = np.asarray(Image.open(os.path.join(MAPS, name)).convert("L"), dtype=float) / 255
-    a = 1.0 - a
-    return a / a.max() if a.max() > 0 else a
 
 
-def flood_bands():
-    """Number of tiers flooding each cell (0..4), after checking the extents are nested."""
-    ext = [read_map(f) > 0 for _, f in TIERS]
-    for (n_small, _), (n_big, _), a, b in zip(TIERS, TIERS[1:], ext, ext[1:]):
-        bad = int((a & ~b).sum())
-        if bad:
-            raise SystemExit(f"Extents not nested: {bad} {n_small} cells outside {n_big}")
-    return sum(e.astype(int) for e in ext)
 
 
-def kde_grid(rows, cols, shape, bw, weights=None):
-    """Gaussian KDE on the grid: point histogram convolved with N(0, bw^2 I), reflecting
-    boundary, so the estimate integrates to the number (or weight) of points."""
-    h = np.zeros(shape)
-    np.add.at(h, (rows, cols), 1.0 if weights is None else weights)
-    return gaussian_filter(h, sigma=bw, mode="reflect", truncate=4.0)
 
 
-def rate_map(runs, fcl, shape, pop_share, bw):
-    """Local annual foreclosure rate (%), defined as the calibration's rate_tot
-    (SA_4/analysis/distress_index_4.py): per run, 100 * foreclosures / mean_active / years,
-    then the mean over seeds. Locally, foreclosures are the run's KDE and mean_active is
-    the run's mean active population times the cell's share of the smoothed placement
-    weight. The mean over runs is one KDE with each point weighted by
-    100 / (n_runs * mean_active_run * years_run)."""
-    w_run = 100 / (len(runs) * runs.mean_active * (runs.tot_step - runs.warmup) / 12)
-    w = fcl.run_id.map(w_run.set_axis(runs.run_id)).to_numpy()
-    num = kde_grid(fcl.y.values - 1, fcl.x.values - 1, shape, bw, weights=w)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        rate = num / pop_share
-    # Check: averaging the map over the population gives back the seed-mean rate_tot.
-    print(f"  population-weighted mean of map {np.nansum(rate * pop_share):.3f} %/yr "
-          f"vs seed-mean rate_tot {runs.rate_tot.mean():.3f} %/yr")
-    return rate
 
 
 def flat(colour):
@@ -202,38 +160,11 @@ def plot(housing, region, band, rate0, rate_vmax, ratio, inset_box):
     save_figure(fig, "figure_S2", dpi=200)
 
 
-def load_map_runs():
-    """The runs drawn in the maps (S0 and FLOOD_SETTING) and their foreclosures per cell."""
-    r = load_cascade_runs()
-    r = r[r.success & (r.block == "main") & np.isclose(r.delta, 0.0) & np.isclose(r.kappa, 10.0)
-          & np.isclose(r.beta2, 0.5) & np.isclose(r.vartheta, 0.05)]
-    cells = read("cascades_rnet/fcl_cells.csv.gz")
-    return {s: (r[r.setting == s], cells[cells.run_id.isin(r.run_id[r.setting == s])]) for s in (0, FLOOD_SETTING)}
-
-
 def main():
-    housing = read_map("nvm_cleaned.png")
-    region = binary_fill_holes(binary_closing(housing > 0, iterations=3))
-    band = np.where(region, flood_bands(), 0)
-
-    pop_share = kde_grid(*np.nonzero(housing >= 0), housing.shape, BANDWIDTH, weights=housing[housing >= 0])
-    pop_share /= pop_share.sum()
-
-    fields = {}
-    for s, (runs, cells) in load_map_runs().items():
-        fcl = cells.loc[cells.index.repeat(cells.n_fcl)]          # one row per foreclosure
-        fields[s] = rate_map(runs, fcl, housing.shape, pop_share, BANDWIDTH)
-
-    keep = region & (pop_share >= MIN_POP * pop_share.max())
-    with np.errstate(divide="ignore", invalid="ignore"):
-        ratio = np.where(keep, np.log2(fields[FLOOD_SETTING] / fields[0]), np.nan)
-        rate0 = np.where(keep, fields[0], np.nan)
-        rate_flood = np.where(keep, fields[FLOOD_SETTING], np.nan)
-    ratio[~np.isfinite(ratio)] = np.nan
+    housing, region, band, rate0, rate_flood, ratio = map_fields(FLOOD_SETTING, MIN_POP)
     # colour scale of (c): 99.5th percentile of the flooded-scenario rate
     rate_vmax = np.nanpercentile(rate_flood, 99.5)
     plot(housing, region, band, rate0, rate_vmax, ratio, INSET)
-
 
 if __name__ == "__main__":
     main()
