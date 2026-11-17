@@ -1,0 +1,11 @@
+[deps]
+Agents = "46ada45e-f475-11e8-01d0-f70cc89e6671"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+InlineStrings = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
+Parquet2 = "98572fba-bba0-415d-956f-fa77e587d26d"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
