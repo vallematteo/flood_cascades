@@ -7,10 +7,16 @@ sequence of 2^13 points (scrambling seed 20261104) that fall inside this region:
 combinations. Each runs with the ten seeds of the sensitivity analysis at S0, with delta = 0
 (no spillover) and lambda = 0.25 (no effect without floods): 10,010 runs.
 
+A second run list holds the calibrated parametrisation at the baseline values of the other
+parameters (beta1 = 1, beta2 = 0.5, beta3 = 1, kappa = 10, vartheta = 0.05, exp_lb = 1087), at S0
+with delta = 0, for the 20 seeds of the cascade experiment: its foreclosure rate and share of
+households in financial distress are the values quoted in the main text.
+
 Run:    uv run python experiments/abc_calibration/design.py
-Writes: data/abc_calibration/design.csv       sample_id, raw_index (position in the Sobol'
-                                              sequence) and the nine parameters
-        output/abc_calibration/run_list.csv   one row per run, read by experiments/global_sa/run.jl
+Writes: data/abc_calibration/design.csv                  sample_id, raw_index (position in the
+                                                         Sobol' sequence) and the nine parameters
+        output/abc_calibration/run_list.csv              one row per run, read by experiments/global_sa/run.jl
+        output/abc_calibration/run_list_calibrated.csv   the 20 runs of the calibrated parametrisation
 """
 import os
 
@@ -22,6 +28,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 BOUNDS = os.path.join(ROOT, "data", "global_sa", "design", "problem_definition.csv")
 DESIGN = os.path.join(ROOT, "data", "abc_calibration", "design.csv")
 RUN_LIST = os.path.join(ROOT, "output", "abc_calibration", "run_list.csv")
+RUN_LIST_CALIBRATED = os.path.join(ROOT, "output", "abc_calibration", "run_list_calibrated.csv")
+CALIBRATED = {"kappa": 10.0, "beta1": 1.0, "beta2": 0.5, "beta3": 1.0, "eta": 0.0382979672588408,
+              "vartheta": 0.05, "m": 5.246293367259204, "varepsilon": 0.0024974777754507, "exp_lb": 1087.0}
+CASCADE_SEEDS = np.random.default_rng(56).integers(0, 2**31, size=20).tolist()   # seeds of the cascade experiment
 
 PARAMS = ["kappa", "beta1", "beta2", "beta3", "eta", "vartheta", "m", "varepsilon", "exp_lb"]
 MIN_GAP = 0.5            # beta1 - beta2 >= 1/2
@@ -53,6 +63,12 @@ def main():
     os.makedirs(os.path.dirname(RUN_LIST), exist_ok=True)
     runs.to_csv(RUN_LIST, index=False)
     print(f"{2 ** M} Sobol' points, {len(x)} with beta1 - beta2 >= {MIN_GAP}; {len(runs):,} runs -> {RUN_LIST}")
+
+    calibrated = pd.DataFrame([{"run_id": i, "sample_id": 0, "setting": 0, "seed_index": i, "seed": sd,
+                                **CALIBRATED, **{k: v for k, v in FIXED.items() if k != "setting"}}
+                               for i, sd in enumerate(CASCADE_SEEDS)])
+    calibrated.to_csv(RUN_LIST_CALIBRATED, index=False)
+    print(f"calibrated parametrisation: {len(calibrated)} runs -> {RUN_LIST_CALIBRATED}")
 
 
 if __name__ == "__main__":
