@@ -25,6 +25,35 @@ to the files in `data/`.
 The raw output of the cluster experiments is not included (TODO: size). Each experiment folder
 explains how to regenerate it, and the reduced data it produces is included in `data/`.
 
+## Computing resources
+
+The three cluster experiments ran on the Snellius national supercomputer (SURF, the
+Netherlands), partition `fat_genoa`: nodes with 2 AMD EPYC 9654 (Genoa) processors, 192 cores
+and 1.5 TiB of memory (about 8 GiB per core). Each experiment ran as one SLURM job on one node
+(the global sensitivity analysis as a 5-task array, one node per task), with 192 single-core
+Julia workers and 336 GB of memory requested per node (`--ntasks=192 --cpus-per-task=1
+--mem=336G`). That node type was the one available; the experiments do not need it.
+
+**Memory.** One Julia worker (one process running simulations one after the other) peaks at
+about 1.2 GB: 1.10 GB for a single run, 1.15 GB for 8 consecutive runs of the heaviest cells
+(S4, delta = 0.25), measured with `/usr/bin/time -l` on an Apple M3 Pro, Julia 1.10.4, Julia
+runtime and compiled code included. A node therefore needs about 1.2 GB per worker plus a few
+GB for the main process: 192 workers fit in about 240 GB, and any machine with at least 1.5 GB
+per core can run one worker per core. TODO: memory of the sensitivity-analysis runner, which
+also writes Parquet output.
+
+**Time.** One run takes 8 to 9 s on one core, on a Genoa node and on an Apple M3 Pro alike.
+
+| Experiment | SLURM job | Runs | Node time | Core-hours (192 cores x node time) |
+|---|---|---|---|---|
+| `global_sa` | array of 5 tasks, one node each, 2026-10-28 | 166,400 | about 30 min per task | TODO (`sacct`) |
+| `abc_calibration` | one node, 2026-11-04 | 10,010 | TODO | TODO |
+| `cascades_rnet` | one node, 2026-11-10 | 65,520 | about 1 h (simulation 55 min: 13 cells of 5,040 runs, 250 to 280 s each, mean 8.7 s per run) plus Julia start-up | TODO (`sacct`) |
+| `foreclosure_timing` | laptop, 10 cores, 2026-11-10 | 1,050 | TODO | |
+
+The cascade timings are from the log of an identical design run on 2026-11-05 (job on node
+`fcn98`, 13 chunks of 5,040 runs, 3,315 s of simulation in all).
+
 ## Main text
 
 | Item | Script | Data | Run time | Data from |
