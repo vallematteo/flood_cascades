@@ -63,7 +63,7 @@ TABLE_S5_ROWS = [("income", r"Income $I_i$ (euro per month)", 0), ("zeta", r"Fun
                  ("sen", r"Seniority $\mathit{sen}_i$ (months)", 0)]
 
 
-def table_s5():
+def table_si5():
     a = draw_applicants()
     cell = lambda x, d: "{0:.{d}f} [{1:.{d}f}, {2:.{d}f}]".format(*np.percentile(x, [50, 25, 75]), d=d)
     lines = [r"\begin{tabular}{l l l}", r"\toprule", r"Attribute & Applicants & Admitted \\", r"\midrule"]
@@ -73,7 +73,7 @@ def table_s5():
     write("table_S5", lines)
 
 
-def table_s6():
+def table_si6():
     s, pos, accepted, band, ks = abc_results()
     main, strict = ks[ks.tol == 0.05].set_index("param"), ks[ks.tol == 0.01].set_index("param")
     boot = abc_bootstrap(pos, accepted[0.05], main.ks_p95.iloc[0]).set_index("param")
@@ -88,7 +88,7 @@ def table_s6():
                        r"\bottomrule", r"\end{tabular}"])
 
 
-def table_s8():
+def table_si8():
     """Rank (1 = largest) of the PAWN index averaged over the five scenarios; bold where the
     rank is 1 or 2 at every J."""
     problem, X = gsa_problem(), pawn_design()
@@ -113,7 +113,7 @@ def table_s8():
                        r"\midrule", *rows, r"\bottomrule"])
 
 
-def table_s9():
+def table_si9():
     sizes, meta = load_cascade_sizes()
     _, _, peaks = size_density(sizes, meta)
     sp = sparks_and_sweeps(sizes, meta, peaks)
@@ -131,7 +131,7 @@ def table_s9():
                        r"\midrule", *rows, r"\bottomrule", r"\end{tabular}"])
 
 
-def table_s10():
+def table_si10():
     ps = load_paired_seed(vartheta=0.05)
     s0 = ps[(ps.kappa == 10) & (ps.beta2 == 0.5) & (ps.setting == 0)]
     t0 = summarise(s0, ["delta"], ["R_net", "R_gross"]).merge(
@@ -153,8 +153,8 @@ def table_s10():
 
 if __name__ == "__main__":
     table_1()
-    table_s5()
-    table_s6()
-    table_s8()
-    table_s9()
-    table_s10()
+    table_si5()
+    table_si6()
+    table_si8()
+    table_si9()
+    table_si10()

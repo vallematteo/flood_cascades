@@ -6,7 +6,7 @@ population smoothed with a Gaussian kernel (bandwidth 0.045 of each axis range);
 iso-population lines of a wider kernel (0.07). Dashed line: beta1 - beta2 = 1/2, the boundary
 of the damage-required region.
 
-Run:    uv run python figure_S3.py
+Run:    uv run python figure_SI3.py
 Writes: output/figures/figure_S3.png
 """
 import matplotlib.pyplot as plt

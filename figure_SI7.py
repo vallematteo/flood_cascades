@@ -5,7 +5,7 @@ flood scenarios.
 (b) median PAWN indices with S = 10 conditioning intervals, bars from the minimum to the maximum
 over the intervals, dotted line at the 95% max-T threshold of 10,000 permutations.
 
-Run:    uv run python figure_S7.py
+Run:    uv run python figure_SI7.py
 Writes: output/figures/figure_S7a.png, figure_S7b.png
 """
 from utils import pawn_figure, sobol_figure

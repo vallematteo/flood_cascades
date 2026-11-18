@@ -23,6 +23,52 @@ the SI (SI Table 5 cell by cell among them); 387 match. Of the others, 7 are rou
 the text, and 11 are euro-valued cells of SI Table 5 that differ by 1 to 3 euros: the paper's
 applicant draws were unseeded, the package draws the same number with a fixed seed.
 
+## Demo
+
+The 20 simulations of the calibrated parametrisation without floods (S0, delta = 0, 20 seeds)
+and their reduction. They give the annual foreclosure rate (0.42%) and the share of households
+in financial distress (0.51%) of the main text, and reproduce
+`data/abc_calibration/calibrated/runs_set0.csv.gz`. Run from the repository root with Julia
+1.10.4 (with juliaup: `julia +1.10.4` in place of `julia`); other versions give slightly
+different runs.
+
+```bash
+# 1. the run list of the calibrated parametrisation
+uv run python experiments/abc_calibration/design.py
+
+# 2. the 20 simulations (raw output in output/demo/raw/)
+julia --project=. experiments/global_sa/run.jl \
+    --run-list output/abc_calibration/run_list_calibrated.csv \
+    --raw-dir output/demo/raw --num-workers 4
+
+# 3. their reduction to one row per run (output/demo/reduced/runs_set0.csv.gz)
+uv run python experiments/global_sa/reduce.py \
+    --run-list output/abc_calibration/run_list_calibrated.csv \
+    --raw-dir output/demo/raw --out-dir output/demo/reduced --runs-only --workers 4
+
+# 4. the two rates, and the comparison with the reduced data in data/
+uv run python -c "
+import pandas as pd
+new = pd.read_csv('output/demo/reduced/runs_set0.csv.gz')
+ref = pd.read_csv('data/abc_calibration/calibrated/runs_set0.csv.gz')
+print(f'{len(new)} runs: annual foreclosure rate {new.rate_tot.mean():.2f}%, '
+      f'households in financial distress {new.arrears_fin.mean():.2f}%')
+cols = ['run_id', 'n_fcl_fin', 'n_fcl_strat', 'n_hhyr_fin']
+same = new[cols].equals(ref[cols]) and (new.rate_tot - ref.rate_tot).abs().max() < 1e-12
+print('identical to data/' if same else 'differs from data/')
+"
+```
+
+Expected output of step 4:
+
+```text
+20 runs: annual foreclosure rate 0.42%, households in financial distress 0.51%
+identical to data/
+```
+
+Run time: about 40 seconds with 4 workers on an Apple M3 Pro (one run takes 8 to 9 s on one
+core); compiling the Julia packages on the first run adds about 30 seconds.
+
 ## Experiments
 
 The data in `data/` comes from five simulation experiments. Each has its own folder in
@@ -98,13 +144,13 @@ Snellius ran Red Hat Enterprise Linux 9.8 (kernel 5.14, x86-64), Julia 1.10.4.
 
 | Item | Script | Data | Data from |
 |---|---|---|---|
-| SI Fig. 1 | `figure_S1.py` | GEV parameters (`utils.py`) | `preparation/gev/` |
-| SI Fig. 2 | `figure_S2.py` | `preparation/flood_maps/`, `data/cascades_rnet/fcl_cells.csv.gz`, `runs_all.csv.gz` | `cascades_rnet` |
-| SI Fig. 3 | `figure_S3.py` | `data/global_sa/runs_set*.csv.gz` | `global_sa` |
-| SI Figs 4 to 6 | `figure_S4.py`, `figure_S5.py`, `figure_S6.py` (panels a, b, c) | `data/global_sa/` | `global_sa` |
-| SI Figs 7 and 8 | `figure_S7.py` (panels a, b), `figure_S8.py` | `data/global_sa/` | `global_sa` |
-| SI Figs 9 and 10 | `figure_S9.py`, `figure_S10.py` | `data/cascades_rnet/paired_seed.csv.gz` | `cascades_rnet` |
-| SI Figs 11 and 12 | `figure_S11.py`, `figure_S12.py` | `data/foreclosure_timing/` | `foreclosure_timing` |
+| SI Fig. 1 | `figure_SI1.py` | GEV parameters (`utils.py`) | `preparation/gev/` |
+| SI Fig. 2 | `figure_SI2.py` | `preparation/flood_maps/`, `data/cascades_rnet/fcl_cells.csv.gz`, `runs_all.csv.gz` | `cascades_rnet` |
+| SI Fig. 3 | `figure_SI3.py` | `data/global_sa/runs_set*.csv.gz` | `global_sa` |
+| SI Figs 4 to 6 | `figure_SI4.py`, `figure_SI5.py`, `figure_SI6.py` (panels a, b, c) | `data/global_sa/` | `global_sa` |
+| SI Figs 7 and 8 | `figure_SI7.py` (panels a, b), `figure_SI8.py` | `data/global_sa/` | `global_sa` |
+| SI Figs 9 and 10 | `figure_SI9.py`, `figure_SI10.py` | `data/cascades_rnet/paired_seed.csv.gz` | `cascades_rnet` |
+| SI Figs 11 and 12 | `figure_SI11.py`, `figure_SI12.py` | `data/foreclosure_timing/` | `foreclosure_timing` |
 | SI Tables 1 to 4 | none: model specification (parameters, distributions, attributes, scorecard) | | |
 | SI Table 5 | `tables.py` | none: 2 x 10^6 applicant draws from the model's distributions and scorecard (`utils.draw_applicants`, seed 0) | |
 | SI Table 6 | `tables.py` | `data/abc_calibration/` | `abc_calibration` |

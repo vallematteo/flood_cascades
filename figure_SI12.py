@@ -2,7 +2,7 @@
 scenarios S1-S4 pooled: (a) both channels, (b) strategic foreclosures. Legends: median age and
 number of foreclosures.
 
-Run:    uv run python figure_S12.py
+Run:    uv run python figure_SI12.py
 Writes: output/figures/figure_S12.png
 """
 import matplotlib.pyplot as plt

@@ -7,7 +7,7 @@ depend on the level and is drawn once, in black. Bottom: Delta R_net = R_net(S1-
 per seed (flooded runs of the seed averaged, minus the S0 run of the same seed), 95% bands over
 20 seeds. Dotted line: R_net = 0.1.
 
-Run:    uv run python figure_S10.py
+Run:    uv run python figure_SI10.py
 Writes: output/figures/figure_S10.png
 """
 import matplotlib.pyplot as plt

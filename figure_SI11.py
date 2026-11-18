@@ -3,7 +3,7 @@ terminal foreclosure, by channel (rows) and by flood scenario, gap beta1 - beta2
 beta3 and damage share lambda (columns). Legends: median distress months and the share of
 foreclosures in the channel. Flood scenarios S1-S4 pooled except in the first column.
 
-Run:    uv run python figure_S11.py
+Run:    uv run python figure_SI11.py
 Writes: output/figures/figure_S11.png
 """
 import matplotlib.pyplot as plt

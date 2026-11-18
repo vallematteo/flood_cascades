@@ -38,13 +38,11 @@ The package can be used at three levels:
 | [`preparation/`](preparation) | model inputs and their preparation: flood maps, flood-severity series, initialization (CBS data and baseline parameters) and the calibration targets (NHG, BKR) ([preparation/README.md](preparation/README.md)) |
 | [`experiments/`](experiments) | one folder per simulation experiment (calibration, global sensitivity analysis, cascades, foreclosure timing, scale of liquid funds), each with its parameter design, runner, SLURM script where it ran on a cluster, reduction script and README |
 | [`data/`](data) | reduced simulation output, the only data the figure, table and number scripts read ([data/README.md](data/README.md)) |
-| `figure_*.py` | one script per figure, named by its number in the paper (`figure_2.py`) or the SI (`figure_S1.py`); Fig. 1 is a schematic (drawn in TikZ, no data) and has no script |
+| `figure_*.py` | one script per figure, named by its number in the paper (`figure_2.py`) or the SI (`figure_SI1.py`); Fig. 1 is a schematic (drawn in TikZ, no data) and has no script |
 | `tables.py` | writes Table 1 and SI Tables 5, 6, 8, 9 and 10 as LaTeX tabulars |
 | `paper_numbers.py` | recomputes every number quoted in the paper and the SI and checks it against the printed value |
 | `utils.py` | code shared by several scripts (paths, constants, data loaders, statistics, plot style) |
 | `reproduce.sh` | runs every figure script, `tables.py` and `paper_numbers.py` (level A) |
-| `demo.sh` | the demo below |
-| [`tests/`](tests) | `check_model_equivalence.jl`: the model gives the same output as the version that produced the paper |
 | [`REPRODUCE.md`](REPRODUCE.md) | for each figure, table and number block: the script, the data, the run time, and how to regenerate the data |
 
 ## System requirements
@@ -96,22 +94,10 @@ and precompilation of the packages).
 
 ## Demo
 
-The 20 simulations of the calibrated parametrisation without floods, and their reduction:
-
-```bash
-bash demo.sh                              # or: JULIA="julia +1.10.4" bash demo.sh
-```
-
-Expected output (last lines):
-
-```
-20 runs: annual foreclosure rate 0.42% (paper 0.42%), households in financial distress 0.51% (paper 0.51%)
-identical to data/abc_calibration/calibrated/runs_set0.csv.gz
-```
-
-Run time: about 40 seconds on 4 cores of an Apple M3 Pro (precompilation of the Julia packages
-on the first run adds about 30 seconds). The raw output goes to `output/demo/raw/`, the reduced
-table to `output/demo/reduced/`.
+The 20 simulations of the calibrated parametrisation without floods, and their reduction,
+reproduce the annual foreclosure rate (0.42%) and the share of households in financial distress
+(0.51%) of the main text in about 40 seconds on 4 cores. Commands, expected output and run time:
+[REPRODUCE.md](REPRODUCE.md#demo).
 
 ## Reproducing the paper
 
@@ -133,4 +119,8 @@ in `preparation/` keeps the licence of its source (see [preparation/README.md](p
 
 ## Citation
 
-TODO: paper reference and archive DOI. See [CITATION.cff](CITATION.cff).
+If you use this code or data, please cite the paper:
+
+> TODO: authors, *Neighbourhood flood damage amplifies mortgage default cascades*, journal, year, DOI.
+
+Code and data archive: TODO: archive DOI.
