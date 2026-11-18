@@ -12,7 +12,6 @@ Code and data for the paper *Neighbourhood flood damage amplifies mortgage defau
 - [Demo](#demo)
 - [Reproducing the paper](#reproducing-the-paper)
 - [License](#license)
-- [Citation](#citation)
 
 ## Quick start
 
@@ -20,7 +19,7 @@ Code and data for the paper *Neighbourhood flood damage amplifies mortgage defau
 git clone https://github.com/vallematteo/flood_cascades.git && cd flood_cascades
 julia +1.10.4 --project=. -e 'using Pkg; Pkg.instantiate()'   # Julia packages, about 2 minutes
 uv sync && source .venv/bin/activate                          # Python packages, about 10 seconds
-bash reproduce.sh                                             # every figure, table and number, about 7 minutes
+bash reproduce/reproduce.sh                                   # every figure, table and number, about 7 minutes
 ```
 
 To run the model itself, the [demo](REPRODUCE.md#demo) runs 20 simulations and checks them
@@ -47,11 +46,12 @@ The package can be used at three levels:
 | [`preparation/`](preparation) | model inputs and their preparation: flood maps, flood-severity series, initialization (CBS data and baseline parameters) and the calibration targets (NHG, BKR) ([preparation/README.md](preparation/README.md)) |
 | [`experiments/`](experiments) | one folder per simulation experiment (calibration, global sensitivity analysis, cascades, foreclosure timing, scale of liquid funds), each with its parameter design, runner, SLURM script where it ran on a cluster, a script that summarises the raw output into `data/`, and README |
 | [`data/`](data) | summarised simulation output (raw runs aggregated to the quantities the paper uses), the only data the figure, table and number scripts read ([data/README.md](data/README.md)) |
-| `figure_*.py` | one script per figure, named by its number in the paper (`figure_2.py`) or the SI (`figure_SI1.py`); Fig. 1 is a schematic (drawn in TikZ, no data) and has no script |
-| `tables.py` | writes Table 1 and SI Tables 5, 6, 8, 9 and 10 as LaTeX tabulars |
-| `paper_numbers.py` | recomputes every number quoted in the paper and the SI and lists them in `output/numbers.csv` |
-| `utils.py` | code shared by several scripts (paths, constants, data loaders, statistics, plot style) |
-| `reproduce.sh` | runs every figure script, `tables.py` and `paper_numbers.py` (level A) |
+| [`reproduce/`](reproduce) | the scripts that turn `data/` into the paper (level A), writing to `output/`: |
+| `reproduce/figure_*.py` | one script per figure, named by its number in the paper (`figure_2.py`) or the SI (`figure_SI1.py`); Fig. 1 is a schematic (drawn in TikZ, no data) and has no script |
+| [`reproduce/tables.py`](reproduce/tables.py) | writes Table 1 and SI Tables 5, 6, 8, 9 and 10 as LaTeX tabulars |
+| [`reproduce/paper_numbers.py`](reproduce/paper_numbers.py) | recomputes every number quoted in the paper and the SI and lists them in `output/numbers.csv` |
+| [`reproduce/utils.py`](reproduce/utils.py) | code shared by these scripts (paths, constants, data loaders, statistics, plot style) |
+| [`reproduce/reproduce.sh`](reproduce/reproduce.sh) | runs every figure script, `tables.py` and `paper_numbers.py` |
 | [`REPRODUCE.md`](REPRODUCE.md) | for each figure, table and number block: the script, the data, the run time, and how to regenerate the data |
 
 ## System requirements
@@ -114,9 +114,8 @@ reproduce the annual foreclosure rate (0.42%) and the share of households in fin
 
 ## Reproducing the paper
 
-
 ```bash
-bash reproduce.sh        # every figure, table and number from data/ (level A), about 7 minutes on a laptop
+bash reproduce/reproduce.sh   # every figure, table and number from data/ (level A), about 7 minutes on a laptop
 ```
 
 [REPRODUCE.md](REPRODUCE.md) lists each figure, table and number block with its script, data,
@@ -126,5 +125,3 @@ run time, and how to regenerate its data from the simulations.
 
 Code: MIT License (see [LICENSE](LICENSE)). Data in `data/`: Creative Commons Attribution 4.0 (CC BY 4.0). Third-party data
 in `preparation/` keeps the licence of its source (see [preparation/README.md](preparation/README.md)).
-
-

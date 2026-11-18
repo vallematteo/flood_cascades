@@ -6,7 +6,7 @@ and 1% tolerances and the one inside both bands. Right: per parameter, the 5-95%
 retained combinations in the sensitivity-analysis range; parameters constrained at the 5%
 tolerance are starred, with the value of the combination inside both bands.
 
-Run:    python figure_2.py
+Run:    python reproduce/figure_2.py
 Writes: output/figures/figure_2.png
 """
 import matplotlib.pyplot as plt

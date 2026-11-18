@@ -6,7 +6,7 @@ statements of the text (for example, that an interval contains zero), 1 if they 
 follow the paper: initialization, calibration, Results (foreclosure rates, composition,
 cascades, timing), sensitivity analysis, cascade method and foreclosure timing of the SI.
 
-Run:    python paper_numbers.py
+Run:    python reproduce/paper_numbers.py
 Writes: output/numbers.csv, and prints every row.
 """
 import os

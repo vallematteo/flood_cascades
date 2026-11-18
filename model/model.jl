@@ -27,6 +27,18 @@ using Distributions
 using Random
 using CSV, DataFrames, Parquet2
 
+# ─── Distributions of the household attributes at entry (SI Table 3)
+# Used by populate_agents! (initial stock), add_agents! (monthly applicants) and update_income!
+# (agents.jl, income on re-employment). Burr Type III parameters are (c, d, loc, scale), as in
+# scipy.stats.burr (see rand_burr). reproduce/utils.py repeats them for SI Table 5.
+const INCOME_BURR     = (3.30, 0.45, -12.76, 3101.46)   # monthly income I (euro)
+const VALUE_BURR      = (3.38, 0.92, -1.34, 195.25)     # property value v (thousand euro)
+const ZETA_BURR       = (9.42, 0.14, -0.11, 73.40)      # liquid funds over loan, before x zeta_scale
+const SENIORITY_BETA  = (0.88, 2.79)                    # seniority = 1 + SENIORITY_RANGE x Beta(0.88, 2.79)
+const SENIORITY_RANGE = 106.34                          # (months)
+const LTV_NORMAL      = (0.57, 0.1)                     # loan-to-value, absolute value of a normal draw
+const LOAN_TERM       = 120                             # instalments of a new mortgage (months)
+
 include("utils.jl")
 include("agents.jl")
 include("parameters.jl")
@@ -68,7 +80,7 @@ end
 
 mutable struct ModelDataCollector
     gev::Vector{Float64}
-    set::Vector{Int}
+    setting::Vector{Int}        # flood scenario S0..S4 (setting = scenario)
     step::Vector{Int}
     u::Vector{Float64}
     tot_num_agents_active::Vector{Int}
@@ -151,7 +163,7 @@ mutable struct ModelProps
     run_id::Int
     kappa::Int                 # neighbourhood radius (grid cells)
     acpt_score::Float64        # minimum scorecard value for admission
-    settings::Int              # flood scenario, 0 = no floods
+    setting::Int               # flood scenario S0..S4 (setting = scenario; 0 = no floods)
     add_agent_ctrl::Bool       # admit new households every month
     rho::Float64               # households per unit of housing density
     save_path::String
@@ -172,10 +184,12 @@ mutable struct ModelProps
     max_agents::Int
     # maps
     density_map::Matrix{Float64}
-    m_fgrote::Matrix{Float64}
-    m_fmiddel::Matrix{Float64}
-    m_fklein::Matrix{Float64}
-    m_feklein::Matrix{Float64}
+    # flood depth maps of the four damage tiers, scaled to [0, 1] (Table 1; R_grote, R_middel, R_klein,
+    # R_eklein in the paper; preparation/flood_maps/grote.png, middel.png, kleine.png, extreme_kleine.png)
+    map_minor::Matrix{Float64}
+    map_moderate::Matrix{Float64}
+    map_severe::Matrix{Float64}
+    map_catastrophic::Matrix{Float64}
     density_slots::Vector{Float64}
     coordinates::Vector{Tuple{Int,Int}}
     gev_list::Vector{Float64}
@@ -193,9 +207,6 @@ mutable struct ModelProps
     acceptance_rate::Float64
     num_created::Int
     num_joined::Int
-    num_revival_current::Int   # forborne households this step (reset each step)
-    num_revival_financial_current::Int   # forborne financial defaulters this step
-    num_revival_strategic_current::Int   # forborne strategic defaulters this step
     save_data_enabled::Bool    # write the Parquet output at the end of the run
     # foreclosure spillover: c = v (1 - lambda D_t) (1 - delta)^n_kappa
     lambda::Float64            # share of house value lost to a flood at D = 1
@@ -215,7 +226,7 @@ function build_model_properties(;
         run_id::Int,
         kappa::Int,
         acpt_score::Float64,
-        settings::Int,
+        setting::Int,               # flood scenario S0..S4 (setting = scenario)
         add_agents::Bool,
         rho::Float64,
         save_path::String,
@@ -234,10 +245,10 @@ function build_model_properties(;
         N_nj::Int,
         file_suffix::String = "",
         density_map::Matrix{Float64},
-        m_fgrote::Matrix{Float64},
-        m_fmiddel::Matrix{Float64},
-        m_fklein::Matrix{Float64},
-        m_feklein::Matrix{Float64},
+        map_minor::Matrix{Float64},
+        map_moderate::Matrix{Float64},
+        map_severe::Matrix{Float64},
+        map_catastrophic::Matrix{Float64},
         gev_list::Vector{Float64},
         save_data_enabled::Bool = true,
         lambda::Float64,
@@ -252,12 +263,12 @@ function build_model_properties(;
     ]
 
     return ModelProps(
-        run_id, kappa, acpt_score, settings, add_agents, rho, save_path,
+        run_id, kappa, acpt_score, setting, add_agents, rho, save_path,
         tot_step, beta1, beta2, beta3, exp_lb,
         eta, vartheta, alpha, m, varepsilon, s_ub, zeta_scale,
         N_nj, file_suffix, 6000,   # max_agents
         # maps
-        density_map, m_fgrote, m_fmiddel, m_fklein, m_feklein,
+        density_map, map_minor, map_moderate, map_severe, map_catastrophic,
         density_slots, coordinates, gev_list, neighbor_offsets,
         # dynamic state
         0.0,       # gev
@@ -268,8 +279,6 @@ function build_model_properties(;
         0,         # current_step
         0.0,       # acceptance_rate
         0, 0,      # num_created, num_joined
-        0,         # num_revival_current
-        0, 0,      # num_revival_financial_current, num_revival_strategic_current
         save_data_enabled,
         lambda, delta,
         zeros(size(density_map)), Tuple{Int,Int}[],
@@ -309,8 +318,24 @@ function create_model(; rng_seed::Int = 42, kwargs...)
 end
 
 
-# ─── Populate agents at t = 0
+# ─── Initial stock of mortgages at t = 0 (not screened by the scorecard)
 
+"""
+    populate_agents!(model)
+
+Create the initial stock of mortgages, once, at t = 0 (called by `create_model`). It differs
+from the monthly applicants of `add_agents!` in four ways:
+
+  - placement: every cell gets round(rho x housing density) households, scaled down if the
+    total exceeds max_agents (applicants are placed at random cells instead);
+  - no screening: every household enters, whatever its score (SI, Agent initialisation);
+  - mortgages already under way: remaining instalments n uniform on 1..120 (applicants
+    start a new 120-month mortgage);
+  - the order of the attribute draws, which is kept as in the paper's simulations so that
+    runs reproduce exactly.
+
+The attributes come from the same distributions (SI Table 3) in both functions.
+"""
 function populate_agents!(model)
     props = abmproperties(model)
     density_map = props.density_map
@@ -340,28 +365,28 @@ function populate_agents!(model)
 
     N = length(xs)
 
-    fgrote  = [props.m_fgrote[ys[k], xs[k]]  for k in 1:N]
-    fmiddel = [props.m_fmiddel[ys[k], xs[k]] for k in 1:N]
-    fklein  = [props.m_fklein[ys[k], xs[k]]  for k in 1:N]
-    feklein = [props.m_feklein[ys[k], xs[k]]  for k in 1:N]
+    D_minor  = [props.map_minor[ys[k], xs[k]]  for k in 1:N]
+    D_moderate = [props.map_moderate[ys[k], xs[k]] for k in 1:N]
+    D_severe  = [props.map_severe[ys[k], xs[k]]  for k in 1:N]
+    D_catastrophic = [props.map_catastrophic[ys[k], xs[k]]  for k in 1:N]
 
-    ltv_arr    = abs.(rand(rng, Normal(0.57, 0.1), N))
-    income_arr = rand_burr_vec(rng, 3.30, 0.45, -12.76, 3101.46, N)
-    sen_arr    = rand(rng, Beta(0.88, 2.79), N) .* 106.34 .+ 1.0
-    zeta_arr   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, N) .* props.zeta_scale
+    ltv_arr    = abs.(rand(rng, Normal(LTV_NORMAL...), N))
+    income_arr = rand_burr_vec(rng, INCOME_BURR..., N)
+    sen_arr    = rand(rng, Beta(SENIORITY_BETA...), N) .* SENIORITY_RANGE .+ 1.0
+    zeta_arr   = rand_burr_vec(rng, ZETA_BURR..., N) .* props.zeta_scale
     s_i_arr    = calc_share_expenses(income_arr, props.m_param, props.varepsilon, props.s_ub)
     living_arr = s_i_arr .* income_arr
     skip_draws!(rng, N)
-    n_arr      = floor.(rand(rng, Uniform(1.0, 121.0), N))
+    n_arr      = floor.(rand(rng, Uniform(1.0, LOAN_TERM + 1.0), N))   # 1..120 instalments left
     # house values are fitted in thousands of euros and converted to euros
-    v_arr      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, N) .* 1000.0
+    v_arr      = rand_burr_vec(rng, VALUE_BURR..., N) .* 1000.0
     p_arr      = ltv_arr .* v_arr ./ n_arr
     l_arr      = p_arr .* n_arr
     w_arr      = zeta_arr .* l_arr
 
     for k in 1:N
         create_household(model, xs[k], ys[k],
-                         fgrote[k], fmiddel[k], fklein[k], feklein[k],
+                         D_minor[k], D_moderate[k], D_severe[k], D_catastrophic[k],
                          zeta_arr[k], income_arr[k], sen_arr[k], living_arr[k],
                          w_arr[k], ltv_arr[k], p_arr[k],
                          v_arr[k], n_arr[k], l_arr[k])
@@ -386,9 +411,6 @@ function model_step!(model)
     # reset the per-step counters at the start, so they can be read after the step
     props.num_default_current = 0
     props.num_mature_current = 0
-    props.num_revival_current = 0
-    props.num_revival_financial_current = 0
-    props.num_revival_strategic_current = 0
 
     # ── flood severity and unemployment of the month ──
     if step < length(props.gev_list)
@@ -522,8 +544,13 @@ function cascade_phase!(model)
 end
 
 
-# ─── New households
+# ─── New applicants every month (screened by the scorecard)
 
+"""
+    find_positions(model, num_joiners) -> (ys, xs)
+
+Random cells for new applicants, drawn with probability proportional to housing density.
+"""
 function find_positions(model, num_joiners::Int)
     props = abmproperties(model)
     rng = abmrng(model)
@@ -542,6 +569,16 @@ function find_positions(model, num_joiners::Int)
     return ys, xs
 end
 
+"""
+    add_agents!(model)
+
+Monthly applicants (called by `model_step!` when add_agents is on): trunc(rho x N_nj)
+applicants, capped so the population does not exceed max_agents, are placed at random cells
+(`find_positions`), draw their attributes from the same distributions as the initial stock
+(SI Table 3), and are admitted only if their score (`scorecard`, SI Table 4) reaches
+acpt_score. Admitted households start a new mortgage of 120 instalments. See
+`populate_agents!` for how the initial stock at t = 0 differs.
+"""
 function add_agents!(model)
     props = abmproperties(model)
     if props.tot_num_agents_active >= props.max_agents
@@ -561,18 +598,18 @@ function add_agents!(model)
     ys, xs = find_positions(model, num_created)
     rng = abmrng(model)
 
-    fgrote_v  = [props.m_fgrote[ys[k], xs[k]]  for k in 1:num_created]
-    fmiddel_v = [props.m_fmiddel[ys[k], xs[k]] for k in 1:num_created]
-    fklein_v  = [props.m_fklein[ys[k], xs[k]]  for k in 1:num_created]
-    feklein_v = [props.m_feklein[ys[k], xs[k]]  for k in 1:num_created]
+    D_minor_v  = [props.map_minor[ys[k], xs[k]]  for k in 1:num_created]
+    D_moderate_v = [props.map_moderate[ys[k], xs[k]] for k in 1:num_created]
+    D_severe_v  = [props.map_severe[ys[k], xs[k]]  for k in 1:num_created]
+    D_catastrophic_v = [props.map_catastrophic[ys[k], xs[k]]  for k in 1:num_created]
 
-    income_v = rand_burr_vec(rng, 3.30, 0.45, -12.76, 3101.46, num_created)
-    sen_v    = rand(rng, Beta(0.88, 2.79), num_created) .* 106.34 .+ 1.0
-    zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* props.zeta_scale
-    ltv_v    = abs.(rand(rng, Normal(0.57, 0.1), num_created))
+    income_v = rand_burr_vec(rng, INCOME_BURR..., num_created)
+    sen_v    = rand(rng, Beta(SENIORITY_BETA...), num_created) .* SENIORITY_RANGE .+ 1.0
+    zeta_v   = rand_burr_vec(rng, ZETA_BURR..., num_created) .* props.zeta_scale
+    ltv_v    = abs.(rand(rng, Normal(LTV_NORMAL...), num_created))
     skip_draws!(rng, num_created)
-    v_v      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, num_created) .* 1000.0  # thousands of euros to euros
-    n_val    = 120.0
+    v_v      = rand_burr_vec(rng, VALUE_BURR..., num_created) .* 1000.0  # thousands of euros to euros
+    n_val    = Float64(LOAN_TERM)
     p_v      = ltv_v .* v_v ./ n_val
     l_v      = p_v .* n_val
     w_v      = zeta_v .* l_v
@@ -586,7 +623,7 @@ function add_agents!(model)
     for i in 1:num_created
         if scores[i] >= props.acpt_score
             create_household(model, xs[i], ys[i],
-                             fgrote_v[i], fmiddel_v[i], fklein_v[i], feklein_v[i],
+                             D_minor_v[i], D_moderate_v[i], D_severe_v[i], D_catastrophic_v[i],
                              zeta_v[i], income_v[i], sen_v[i], living_v[i],
                              w_v[i], ltv_v[i], p_v[i],
                              v_v[i], n_val, l_v[i])
@@ -655,7 +692,7 @@ function collect_model_data!(model)
                props.num_default_current / props.tot_num_agents_active : 0.0
 
     push!(mc.gev, props.gev)
-    push!(mc.set, props.settings)
+    push!(mc.setting, props.setting)
     push!(mc.step, props.current_step)
     push!(mc.u, props.u_unemployment)
     push!(mc.tot_num_agents_active, props.tot_num_agents_active)
@@ -684,19 +721,6 @@ function zstd_codec(df::DataFrame)
     return Dict(col => :zstd for col in names(df))
 end
 
-# Sort vals in place, then return (gini, median).
-function gini_and_median!(vals::Vector{Float64})
-    n = length(vals)
-    n == 0 && return 0.0, 0.0
-    sort!(vals)
-    med = n % 2 == 1 ? vals[div(n, 2) + 1] :
-                       0.5 * (vals[div(n, 2)] + vals[div(n, 2) + 1])
-    s = sum(vals)
-    s == 0.0 && return 0.0, med
-    weighted = sum(i * vals[i] for i in 1:n)
-    return (2.0 * weighted) / (n * s) - (n + 1.0) / n, med
-end
-
 function save_data(model)
     props = abmproperties(model)
     mkpath(props.save_path)
@@ -708,33 +732,6 @@ function save_data(model)
         joinpath(props.save_path, "model_data$(suffix).parquet"),
         model_df;
         compression_codec = zstd_codec(model_df),
-    )
-
-    # ── wealth distribution of the households alive at the final step ──
-    n_ag = props.tot_num_agents_active
-    w_vals  = Vector{Float64}(undef, n_ag)
-    wc_vals = Vector{Float64}(undef, n_ag)
-    i = 1
-    for id in allids(model)
-        a = model[id]
-        w_vals[i]  = a.w
-        wc_vals[i] = a.w + a.c
-        i += 1
-    end
-    gini_w,  median_w  = gini_and_median!(w_vals)
-    gini_wc, median_wc = gini_and_median!(wc_vals)
-    final_df = DataFrame(
-        run_id    = [props.run_id],
-        setting   = [props.settings],
-        gini_w    = [gini_w],
-        median_w  = [median_w],
-        gini_wc   = [gini_wc],
-        median_wc = [median_wc],
-    )
-    Parquet2.writefile(
-        joinpath(props.save_path, "agent_data$(suffix).parquet"),
-        final_df;
-        compression_codec = zstd_codec(final_df),
     )
 
     # ── distress data ──

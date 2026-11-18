@@ -5,7 +5,7 @@ Percentage change of M = 1/(1 - R_net) between each flood scenario and S0, per s
 Student-t bands over 20 seeds. Slice: calibrated parametrisation, kappa = 10,
 beta1 - beta2 = 0.5, vartheta = 0.05.
 
-Run:    python figure_SI9.py
+Run:    python reproduce/figure_SI9.py
 Writes: output/figures/figure_S9.png
 """
 import matplotlib.pyplot as plt

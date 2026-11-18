@@ -8,7 +8,7 @@
     share of foreclosures in large cascades.
 Slice: calibrated parametrisation, kappa = 10, beta1 - beta2 = 0.5, vartheta = 0.05.
 
-Run:    python figure_4.py
+Run:    python reproduce/figure_4.py
 Writes: output/figures/figure_4.png
 """
 import matplotlib.pyplot as plt

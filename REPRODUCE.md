@@ -3,11 +3,11 @@
 Every figure, table and quoted number in the paper and the Supplementary Information (SI), with
 the script that produces it, the data it reads, and how that data was generated.
 
-Figure and table numbers follow the submitted PDFs. All scripts are run from the repository
-root and write to `output/`.
+Figure and table numbers follow the submitted PDFs. The figure, table and number scripts listed
+below are in `reproduce/`. All scripts are run from the repository root and write to `output/`.
 
 Every `python` command assumes the Python environment is active (`uv sync` once, then
-`source .venv/bin/activate`; README, Installation guide). `bash reproduce.sh` runs
+`source .venv/bin/activate`; README, Installation guide). `bash reproduce/reproduce.sh` runs
 them all, in about 7 minutes on a laptop (Apple M3 Pro): a few seconds per figure, except SI
 Figs 4 to 7 (about 40 s each, for the PAWN permutation thresholds), `tables.py` (10 s) and
 `paper_numbers.py` (about 3 minutes).
@@ -75,6 +75,9 @@ core); compiling the Julia packages on the first run adds about 30 seconds.
 The data in `data/` comes from five simulation experiments. Each has its own folder in
 `experiments/` with the parameter design, the runner, and the script that reduces raw output
 to the files in `data/`.
+
+**`setting` = flood scenario.** In the code and in every data file, `setting` is the flood
+scenario, 0 to 4 for S0 (no floods) to S4.
 
 **No script writes to `data/`.** Designs, raw output and reductions all go to
 `output/<experiment>/`, with the reduced files in `output/<experiment>/reduced/` under the same
@@ -144,32 +147,32 @@ Snellius ran Red Hat Enterprise Linux 9.8 (kernel 5.14, x86-64), Julia 1.10.4.
 | Item | Script | Data | Data from |
 |---|---|---|---|
 | Fig. 1 | none: schematic of the model, not generated from data | | |
-| Fig. 2 | `figure_2.py` | `data/abc_calibration/` | `abc_calibration` |
-| Fig. 3a | `figure_3.py` | `data/cascades_rnet/runs_all.csv.gz` | `cascades_rnet` |
-| Fig. 3b | `figure_3.py` | `data/global_sa/` | `global_sa` |
-| Fig. 4 | `figure_4.py` | `data/cascades_rnet/` (paired seeds, cascade sizes) | `cascades_rnet` |
-| Fig. 5 | `figure_5.py` | `data/foreclosure_timing/gap_*` | `foreclosure_timing` |
-| Table 1 | `tables.py` | GEV parameters (`utils.py`) | `preparation/gev/` |
-| Numbers in the text | `paper_numbers.py` | all of `data/`, `preparation/initialization/baseline_parameters.csv` | all |
+| Fig. 2 | [`figure_2.py`](reproduce/figure_2.py) | `data/abc_calibration/` | `abc_calibration` |
+| Fig. 3a | [`figure_3.py`](reproduce/figure_3.py) | `data/cascades_rnet/runs_all.csv.gz` | `cascades_rnet` |
+| Fig. 3b | [`figure_3.py`](reproduce/figure_3.py) | `data/global_sa/` | `global_sa` |
+| Fig. 4 | [`figure_4.py`](reproduce/figure_4.py) | `data/cascades_rnet/` (paired seeds, cascade sizes) | `cascades_rnet` |
+| Fig. 5 | [`figure_5.py`](reproduce/figure_5.py) | `data/foreclosure_timing/gap_*` | `foreclosure_timing` |
+| Table 1 | [`tables.py`](reproduce/tables.py) | GEV parameters ([`reproduce/utils.py`](reproduce/utils.py)) | `preparation/gev/` |
+| Numbers in the text | [`paper_numbers.py`](reproduce/paper_numbers.py) | all of `data/`, `preparation/initialization/baseline_parameters.csv` | all |
 
 ## Supplementary Information
 
 | Item | Script | Data | Data from |
 |---|---|---|---|
-| SI Fig. 1 | `figure_SI1.py` | GEV parameters (`utils.py`) | `preparation/gev/` |
-| SI Fig. 2 | `figure_SI2.py` | `preparation/flood_maps/`, `data/cascades_rnet/fcl_cells.csv.gz`, `runs_all.csv.gz` | `cascades_rnet` |
-| SI Fig. 3 | `figure_SI3.py` | `data/global_sa/runs_set*.csv.gz` | `global_sa` |
-| SI Figs 4 to 6 | `figure_SI4.py`, `figure_SI5.py`, `figure_SI6.py` (panels a, b, c) | `data/global_sa/` | `global_sa` |
-| SI Figs 7 and 8 | `figure_SI7.py` (panels a, b), `figure_SI8.py` | `data/global_sa/` | `global_sa` |
-| SI Figs 9 and 10 | `figure_SI9.py`, `figure_SI10.py` | `data/cascades_rnet/paired_seed.csv.gz` | `cascades_rnet` |
-| SI Figs 11 and 12 | `figure_SI11.py`, `figure_SI12.py` | `data/foreclosure_timing/` | `foreclosure_timing` |
+| SI Fig. 1 | [`figure_SI1.py`](reproduce/figure_SI1.py) | GEV parameters ([`reproduce/utils.py`](reproduce/utils.py)) | `preparation/gev/` |
+| SI Fig. 2 | [`figure_SI2.py`](reproduce/figure_SI2.py) | `preparation/flood_maps/`, `data/cascades_rnet/fcl_cells.csv.gz`, `runs_all.csv.gz` | `cascades_rnet` |
+| SI Fig. 3 | [`figure_SI3.py`](reproduce/figure_SI3.py) | `data/global_sa/runs_set*.csv.gz` | `global_sa` |
+| SI Figs 4 to 6 | [`figure_SI4.py`](reproduce/figure_SI4.py), [`figure_SI5.py`](reproduce/figure_SI5.py), [`figure_SI6.py`](reproduce/figure_SI6.py) (panels a, b, c) | `data/global_sa/` | `global_sa` |
+| SI Figs 7 and 8 | [`figure_SI7.py`](reproduce/figure_SI7.py) (panels a, b), [`figure_SI8.py`](reproduce/figure_SI8.py) | `data/global_sa/` | `global_sa` |
+| SI Figs 9 and 10 | [`figure_SI9.py`](reproduce/figure_SI9.py), [`figure_SI10.py`](reproduce/figure_SI10.py) | `data/cascades_rnet/paired_seed.csv.gz` | `cascades_rnet` |
+| SI Figs 11 and 12 | [`figure_SI11.py`](reproduce/figure_SI11.py), [`figure_SI12.py`](reproduce/figure_SI12.py) | `data/foreclosure_timing/` | `foreclosure_timing` |
 | SI Tables 1 to 4 | none: model specification (parameters, distributions, attributes, scorecard) | | |
-| SI Table 5 | `tables.py` | none: 2 x 10^6 applicant draws from the model's distributions and scorecard (`utils.draw_applicants`, seed 0) | |
-| SI Table 6 | `tables.py` | `data/abc_calibration/` | `abc_calibration` |
+| SI Table 5 | [`tables.py`](reproduce/tables.py) | none: 2 x 10^6 applicant draws from the model's distributions and scorecard (`utils.draw_applicants`, seed 0) | |
+| SI Table 6 | [`tables.py`](reproduce/tables.py) | `data/abc_calibration/` | `abc_calibration` |
 | SI Table 7 | none: sampling ranges of the sensitivity analysis | | |
-| SI Table 8 | `tables.py` | `data/global_sa/` | `global_sa` |
-| SI Tables 9 and 10 | `tables.py` | `data/cascades_rnet/` | `cascades_rnet` |
-| Numbers in the SI | `paper_numbers.py` | all of `data/` | all |
+| SI Table 8 | [`tables.py`](reproduce/tables.py) | `data/global_sa/` | `global_sa` |
+| SI Tables 9 and 10 | [`tables.py`](reproduce/tables.py) | `data/cascades_rnet/` | `cascades_rnet` |
+| Numbers in the SI | [`paper_numbers.py`](reproduce/paper_numbers.py) | all of `data/` | all |
 
 ## Model inputs
 

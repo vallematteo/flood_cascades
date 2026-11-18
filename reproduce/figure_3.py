@@ -2,18 +2,20 @@
 
 (a) Annual foreclosure rate by flood scenario, split into financial and strategic foreclosures,
     at the calibrated parametrisation with beta1 = 1, beta2 = 0.5, beta3 = 1, kappa = 10,
-    vartheta = 0.05, delta = 0, lambda in {0.25, 0.5, 0.75} pooled: mean over runs, bar = 95%
-    interval of the total rate (1.96 standard errors). Data: cascade experiment, delta = 0.
+    vartheta = 0.05, delta = 0: rates averaged over lambda in {0.25, 0.5, 0.75} within seed,
+    mean over 20 seeds, bar = 95% Student-t interval of the total rate with the seed as unit.
+    Data: cascade experiment, delta = 0.
 (b) Share of financial and strategic foreclosures against beta1 - beta2, in 12 quantile bins,
     for the sensitivity-analysis vectors with delta <= 0.15; lower panel: mean active mortgages.
     Data: sensitivity analysis.
 
-Run:    python figure_3.py
+Run:    python reproduce/figure_3.py
 Writes: output/figures/figure_3a.png, output/figures/figure_3b.png
 """
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from utils import (CALIBRATED, CHANNEL_COLORS, FS, SETTING_COLORS, YEARS, load_cascade_runs,
                    load_gsa_runs, load_gsa_vectors, load_saltelli_matrix, save_figure)
@@ -30,14 +32,16 @@ def panel_a():
         assert np.allclose(r[k], v), k
     for ch in ("tot", "fin", "strat"):
         r[f"rate_{ch}"] = 100 * r[f"n_fcl_{ch}"] / r.mean_active / YEARS
-    g = r.groupby("setting")[["rate_fin", "rate_strat", "rate_tot"]]
-    mean, ci = g.mean(), 1.96 * g.std(ddof=1) / np.sqrt(g.count())
+    per_seed = r.groupby(["setting", "seed"])[["rate_fin", "rate_strat", "rate_tot"]].mean()
+    mean = per_seed.groupby("setting").mean()
+    ci = per_seed.groupby("setting").rate_tot.apply(
+        lambda v: stats.t.ppf(0.975, len(v) - 1) * v.std(ddof=1) / np.sqrt(len(v)))
     x = mean.index.values
 
     fig, ax = plt.subplots(figsize=(10, 7))
     ax.bar(x, mean.rate_fin, color=CHANNEL_COLORS["fin"], label="financial", width=0.65)
     ax.bar(x, mean.rate_strat, bottom=mean.rate_fin, color=CHANNEL_COLORS["strat"], label="strategic", width=0.65)
-    ax.errorbar(x, mean.rate_tot, yerr=ci.rate_tot, fmt="none", ecolor="black", elinewidth=2, capsize=6)
+    ax.errorbar(x, mean.rate_tot, yerr=ci.values, fmt="none", ecolor="black", elinewidth=2, capsize=6)
     ax.set_xticks(x)
     ax.set_xticklabels([rf"$\mathcal{{S}}_{s}$" for s in x])
     ax.set_xlabel("Flood scenario", fontsize=FS, fontweight="bold")
@@ -91,7 +95,6 @@ def panel_b():
         x, y, ci = z.gap.to_numpy(), z["mean"].to_numpy(), z.ci.to_numpy()
         ax_n.plot(x, y, color=SETTING_COLORS[s], marker=MARKERS[s], ms=5.5, lw=2.2, zorder=3)
         ax_n.fill_between(x, np.clip(y - ci, 1e-9, None), y + ci, color=SETTING_COLORS[s], alpha=0.12, linewidth=0)
-    ax_n.axhline(1000, color="black", lw=1.2, ls="--", alpha=0.5, zorder=1)
     ax_n.set_ylabel("Active households", fontsize=FS - 6, fontweight="bold")
     ax_n.set_ylim(bottom=0)
     ax_n.tick_params(axis="both", labelsize=FS - 6)

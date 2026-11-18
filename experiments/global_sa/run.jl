@@ -1,11 +1,10 @@
 """
     Simulation runner of the global sensitivity analysis and of the calibration.
 
-    Reads a run list (one row per run: run_id, setting, seed and the sampled parameters) and
+    Reads a run list (one row per run: run_id, setting (= flood scenario, 0 to 4), seed and the sampled parameters) and
     runs each simulation with the model in model/, writing its full output as Parquet files
     to --raw-dir:
       model_data_run<id>.parquet     macro series (active mortgages per step)
-      agent_data_run<id>.parquet     wealth distribution at the last step
       distress_data_run<id>.parquet  one row per default trigger
       default_data_run<id>.parquet   one row per foreclosure
     plus run_log_<chunk>.csv with the run time and peak memory of every run.
@@ -75,15 +74,15 @@ const FIXED = (acpt_score = P[:acpt_score], add_agents = P[:add_agents] == 1, rh
     t0 = time()
     model = create_model(;
         rng_seed = Int(p.seed), run_id = Int(p.run_id),
-        kappa = Int(round(p.kappa)), acpt_score = fixed.acpt_score, settings = Int(p.setting),
+        kappa = Int(round(p.kappa)), acpt_score = fixed.acpt_score, setting = Int(p.setting),
         add_agents = fixed.add_agents, rho = fixed.rho, save_path = raw_dir, tot_step = tot_step,
         beta1 = Float64(p.beta1), beta2 = Float64(p.beta2), beta3 = Float64(p.beta3),
         exp_lb = Float64(p.exp_lb), eta = Float64(p.eta), vartheta = Float64(p.vartheta),
         alpha = fixed.alpha, m = Float64(p.m), varepsilon = Float64(p.varepsilon),
         s_ub = fixed.s_ub, N_nj = fixed.N_nj,
         file_suffix = "_run" * lpad(Int(p.run_id), 7, '0'),
-        density_map = maps.nvm, m_fgrote = maps.m_fgrote, m_fmiddel = maps.m_fmiddel,
-        m_fklein = maps.m_fklein, m_feklein = maps.m_feklein, gev_list = gev_list,
+        density_map = maps.nvm, map_minor = maps.map_minor, map_moderate = maps.map_moderate,
+        map_severe = maps.map_severe, map_catastrophic = maps.map_catastrophic, gev_list = gev_list,
         lambda = Float64(p.lambda), delta = Float64(p.delta),
         zeta_scale = hasproperty(p, :zeta_scale) ? Float64(p.zeta_scale) : fixed.zeta_scale,
     )
@@ -112,10 +111,10 @@ function main()
     mkpath(A["raw_dir"])
 
     prep = joinpath(ROOT, "preparation")
-    maps = (; m_fgrote  = read_map(joinpath(prep, "flood_maps"), "grote.png"),
-              m_fmiddel = read_map(joinpath(prep, "flood_maps"), "middel.png"),
-              m_fklein  = read_map(joinpath(prep, "flood_maps"), "kleine.png"),
-              m_feklein = read_map(joinpath(prep, "flood_maps"), "extreme_kleine.png"),
+    maps = (; map_minor  = read_map(joinpath(prep, "flood_maps"), "grote.png"),
+              map_moderate = read_map(joinpath(prep, "flood_maps"), "middel.png"),
+              map_severe  = read_map(joinpath(prep, "flood_maps"), "kleine.png"),
+              map_catastrophic = read_map(joinpath(prep, "flood_maps"), "extreme_kleine.png"),
               nvm       = read_map(joinpath(prep, "flood_maps"), "nvm_cleaned.png"))
     gev_df = CSV.read(joinpath(prep, "gev", "gev_config_static_2500.csv"), DataFrame)
     gev = Dict(s => Float64.(gev_df[!, Symbol("set$s")]) for s in 0:4)

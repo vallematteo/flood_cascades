@@ -62,20 +62,21 @@ function calc_share_expenses(income::Vector{Float64}, m::Float64, varepsilon::Fl
 end
 
 """
-    scorecard(r_cap, income, seniority, ltv, install) -> Vector{Float64}
+    scorecard(zeta, income, seniority, ltv, install) -> Vector{Float64}
 
-Admission scorecard for new applicants (maximum 300).
+Admission scorecard for new applicants (SI Table 4; maximum 300). zeta is the ratio of
+liquid funds to the loan.
 """
-function scorecard(r_cap::Vector{Float64}, income::Vector{Float64},
+function scorecard(zeta::Vector{Float64}, income::Vector{Float64},
                    seniority::Vector{Float64}, ltv::Vector{Float64},
                    install::Vector{Float64})
-    n = length(r_cap)
+    n = length(zeta)
     scores = zeros(Float64, n)
     for i in 1:n
         # Capital score (max 80)
-        cap = r_cap[i] <= 0.4 ? 20.0 :
-              r_cap[i] <= 0.6 ? 40.0 :
-              r_cap[i] <= 0.8 ? 60.0 : 80.0
+        cap = zeta[i] <= 0.4 ? 20.0 :
+              zeta[i] <= 0.6 ? 40.0 :
+              zeta[i] <= 0.8 ? 60.0 : 80.0
 
         # Income score (max 65)
         inc = income[i] <= 1500 ? 13.0 :

@@ -1,14 +1,15 @@
 #!/bin/bash
 # Every figure, table and number of the paper and the SI from the data in data/ (level A).
 # Run from the repository root, with the Python environment active (README, Installation guide):
-#     bash reproduce.sh
+#     bash reproduce/reproduce.sh
 # Writes output/figures/, output/tables/ and output/numbers.csv.
 
 set -euo pipefail
+cd "$(dirname "$0")/.."
 run() {
     local start=$SECONDS
     echo "== $*"
-    python "$@"
+    python "reproduce/$1"
     echo "   ($((SECONDS - start)) s)"
 }
 

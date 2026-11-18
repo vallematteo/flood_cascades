@@ -4,15 +4,23 @@
 
 using Agents, Distributions
 
+# Codes of default_reason. 1 and -1 are also the codes of the saved output (channel of a
+# default trigger or a foreclosure).
+const FINANCIAL = 1      # funds after living expenses no longer cover the instalment
+const STRATEGIC = -1     # willingness to pay below the threshold psi_1
+const FORBORNE = 0       # defaulted this month and was forborne
+const NO_DEFAULT = 3     # has not defaulted (state at entry)
+
 @agent struct Household(GridAgent{2})
     # location (same as pos, kept for map indexing)
     x::Int          # column
     y::Int          # row
-    # flood damage of the location under each flood map
-    fgrote::Float64
-    fmiddel::Float64
-    fklein::Float64
-    feklein::Float64
+    # damage of the location under the flood map of each tier (Table 1: R_grote, R_middel, R_klein, R_eklein);
+    # find_flood_map! copies the one of the current month into D
+    D_minor::Float64
+    D_moderate::Float64
+    D_severe::Float64
+    D_catastrophic::Float64
     D::Float64              # damage from the current flood
     u::Float64              # neighbourhood utility U
     t::Int                  # age of the mortgage (months)
@@ -37,7 +45,7 @@ using Agents, Distributions
     delta_p::Float64        # flood loss of house value, lambda D v
     psi_1::Float64          # strategic-default threshold (redrawn every month)
     psi_2::Float64          # employment threshold (fixed at entry)
-    default_reason::Int     # 1 = financial, -1 = strategic, 0 = forborne, 3 = none
+    default_reason::Int     # FINANCIAL, STRATEGIC, FORBORNE or NO_DEFAULT (codes above)
     p_wtp::Float64          # willingness to pay
     s_i::Float64            # share of income spent on living expenses
     fin_threshold::Float64  # wealth left after living expenses
@@ -55,7 +63,7 @@ end
 Construct a Household and add it to the model at grid position (x, y).
 """
 function create_household(model, x::Int, y::Int,
-                          fgrote, fmiddel, fklein, feklein,
+                          D_minor, D_moderate, D_severe, D_catastrophic,
                           zeta, income, sen, living_exp,
                           w, ltv, p, v, n, l)
     # two independent draws: psi_1 sets the strategic-default threshold and is redrawn
@@ -67,10 +75,10 @@ function create_household(model, x::Int, y::Int,
     agent = add_agent!((x, y), Household, model;
         x = x,
         y = y,
-        fgrote = Float64(fgrote),
-        fmiddel = Float64(fmiddel),
-        fklein = Float64(fklein),
-        feklein = Float64(feklein),
+        D_minor = Float64(D_minor),
+        D_moderate = Float64(D_moderate),
+        D_severe = Float64(D_severe),
+        D_catastrophic = Float64(D_catastrophic),
         D = 0.0,
         u = 1.0,
         t = 0,
@@ -93,7 +101,7 @@ function create_household(model, x::Int, y::Int,
         delta_p = 0.0,
         psi_1 = psi_1_val,
         psi_2 = psi_2_val,
-        default_reason = 3,
+        default_reason = NO_DEFAULT,
         p_wtp = 0.0,
         s_i = 0.0,
         fin_threshold = 0.0,
@@ -228,13 +236,13 @@ function update_s_d!(agent::Household, model)
     # financial default: wealth after living expenses no longer covers the installment
     if agent.s_d == 0 && agent.fin_threshold <= agent.p
         agent.s_d = 1
-        agent.default_reason = 1
+        agent.default_reason = FINANCIAL
     end
 
     # strategic default
     if agent.s_d == 0 && agent.p_wtp < agent.psi_1
         agent.s_d = 1
-        agent.default_reason = -1
+        agent.default_reason = STRATEGIC
     end
 
     # Every household enters the month with s_d == 0, so s_d == 1 here is a new trigger.
@@ -244,14 +252,8 @@ function update_s_d!(agent::Household, model)
 
     # forbearance: a defaulter of either channel is forborne when wtp > 1 - psi_1
     if agent.s_d == 1 && agent.p_wtp > (1 - agent.psi_1)
-        if agent.default_reason == 1
-            props.num_revival_financial_current += 1
-        elseif agent.default_reason == -1
-            props.num_revival_strategic_current += 1
-        end
         agent.s_d = 0
-        agent.default_reason = 0
-        props.num_revival_current += 1
+        agent.default_reason = FORBORNE
     end
     return triggered_reason
 end
@@ -268,20 +270,20 @@ function update_income!(agent::Household, model)
     elseif new_s_e == 0 && old_s_e == 0 && agent.tau > 12
         agent.income = 0.0
     elseif new_s_e == 1 && old_s_e == 0
-        agent.income = rand_burr(abmrng(model), 3.30, 0.45, -12.76, 3101.46)
+        agent.income = rand_burr(abmrng(model), INCOME_BURR...)   # a new job: a new income draw
     end
 end
 
 function find_flood_map!(agent::Household, props)
     gev = props.gev
     if 0 < gev <= 30
-        agent.D = agent.fgrote
+        agent.D = agent.D_minor
     elseif 30 < gev <= 300
-        agent.D = agent.fmiddel
+        agent.D = agent.D_moderate
     elseif 300 < gev <= 3000
-        agent.D = agent.fklein
+        agent.D = agent.D_severe
     elseif 3000 < gev
-        agent.D = agent.feklein
+        agent.D = agent.D_catastrophic
     else  # gev <= 0: no flood
         agent.D = 0.0
     end

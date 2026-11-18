@@ -5,9 +5,9 @@ Top: R_net against delta at S0 (open squares) and under S1-S4 (filled circles), 
 Student-t intervals, each run one observation. In the lambda and vartheta columns S0 does not
 depend on the level and is drawn once, in black. Bottom: Delta R_net = R_net(S1-S4) - R_net(S0),
 per seed (flooded runs of the seed averaged, minus the S0 run of the same seed), 95% bands over
-20 seeds. Dotted line: R_net = 0.1.
+20 seeds.
 
-Run:    python figure_SI10.py
+Run:    python reproduce/figure_SI10.py
 Writes: output/figures/figure_S10.png
 """
 import matplotlib.pyplot as plt
@@ -17,7 +17,6 @@ from matplotlib.lines import Line2D
 from utils import FS, curve, level_axis, load_paired_seed, points, save_figure, style_axes, summarise
 
 VARTHETA_BASE = 0.05
-R_REF = 0.1
 KAPPA_COLORS = {3: "#9e9e9e", 7: "#74a9cf", 10: "#2978b5", 15: "#ef6548", 18: "#b2182b"}
 GAP_COLORS = {0.5: "#2978b5", 0.6: "#e6a117", 0.7: "#41ab5d"}
 LAMBDA_COLORS = {0.25: "#fdae61", 0.5: "#d7191c", 0.75: "#7b3294"}
@@ -67,7 +66,6 @@ def main():
                 points(ax_r, s, "delta", "S0", "black", None, dx=d0 * dodge, marker="s", markerfacecolor="white", markeredgewidth=2.5)
             points(ax_r, s, "delta", "flooded", c, None, dx=d1 * dodge)
             curve(ax_d, s, "dR", c)
-        ax_r.axhline(R_REF, color="grey", linestyle=":", linewidth=2)
         ax_r.set_title(title, fontsize=F, fontweight="bold")
         h = [Line2D([], [], color=c, linewidth=4, label=lab) for lab, *_, c in items]
         if s0_once:
@@ -81,7 +79,6 @@ def main():
             ax.xaxis.label.set_fontsize(F)
             ax.yaxis.label.set_fontsize(F)
             ax.tick_params(labelsize=F - 3)
-    axes[0, 0].text(0.003, R_REF + 0.015, "threshold", fontsize=F - 10, color="grey")
     h = [Line2D([], [], color="black", linestyle="", marker="s", markerfacecolor="white", markeredgewidth=2.5, markersize=11,
                 label=r"$\mathcal{S}_0$ ($R_{\mathrm{net}}$)"),
          Line2D([], [], color="black", linestyle="", marker="o", markersize=11, label=FLOODED + r" ($R_{\mathrm{net}}$)")]

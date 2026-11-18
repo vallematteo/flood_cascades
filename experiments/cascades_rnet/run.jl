@@ -132,14 +132,14 @@ end
     t0 = time()
     model = create_model(;
         rng_seed = p.seed, run_id = p.run_id,
-        kappa = Int(round(p.kappa)), acpt_score = par.acpt_score, settings = p.setting,
+        kappa = Int(round(p.kappa)), acpt_score = par.acpt_score, setting = p.setting,
         add_agents = par.add_agents, rho = par.rho, save_path = "", tot_step = tot_step,
         beta1 = par.beta1, beta2 = p.beta2, beta3 = par.beta3,
         exp_lb = par.exp_lb, eta = par.eta, vartheta = p.vartheta, alpha = par.alpha,
         m = par.m, varepsilon = par.varepsilon, s_ub = par.s_ub, N_nj = par.N_nj,
         save_data_enabled = false,
-        density_map = maps.nvm, m_fgrote = maps.m_fgrote, m_fmiddel = maps.m_fmiddel,
-        m_fklein = maps.m_fklein, m_feklein = maps.m_feklein, gev_list = gev_list,
+        density_map = maps.nvm, map_minor = maps.map_minor, map_moderate = maps.map_moderate,
+        map_severe = maps.map_severe, map_catastrophic = maps.map_catastrophic, gev_list = gev_list,
         lambda = p.lambda, delta = p.delta,
     )
 
@@ -157,7 +157,7 @@ end
     n_trig_fin = n_trig_strat = 0
     for k in eachindex(dc.step)
         inwin(dc.step[k]) || continue
-        dc.default_reason[k] == 1 ? (n_trig_fin += 1) : (n_trig_strat += 1)
+        dc.default_reason[k] == FINANCIAL ? (n_trig_fin += 1) : (n_trig_strat += 1)
     end
 
     n_fcl_fin = n_fcl_strat = n_attr_fin = n_attr_strat = 0
@@ -165,7 +165,7 @@ end
     age_fin = Int[]; age_strat = Int[]
     for k in eachindex(fc.step)
         inwin(fc.step[k]) || continue
-        fin = fc.default_reason[k] == 1
+        fin = fc.default_reason[k] == FINANCIAL
         psi, w, w0 = fc.psi[k], fc.p_wtp[k], fc.p_wtp0[k]
         attr = fin ? (psi > 1 - w0) : !((w0 < psi) && (psi <= 1 - w0))
         # expected share of the foreclosure probability due to the discount
@@ -204,7 +204,7 @@ end
     # Foreclosures from step warmup - 1 on: every member of a cascade rooted in the window is
     # in the window, and children at step warmup need the step warmup - 1 candidates.
     keep = findall(s -> s >= warmup - 1, fc.step)
-    fin_all = fc.default_reason[keep] .== 1
+    fin_all = fc.default_reason[keep] .== FINANCIAL
     attr_all = [fin_all[n] ? (fc.psi[k] > 1 - fc.p_wtp0[k]) :
                 !((fc.p_wtp0[k] < fc.psi[k]) && (fc.psi[k] <= 1 - fc.p_wtp0[k]))
                 for (n, k) in enumerate(keep)]
@@ -232,10 +232,10 @@ function main()
     all_jobs, cells = build_design()
     mkpath(A["out_dir"])
     prep = joinpath(ROOT, "preparation")
-    maps = (; m_fgrote  = read_map(joinpath(prep, "flood_maps"), "grote.png"),
-              m_fmiddel = read_map(joinpath(prep, "flood_maps"), "middel.png"),
-              m_fklein  = read_map(joinpath(prep, "flood_maps"), "kleine.png"),
-              m_feklein = read_map(joinpath(prep, "flood_maps"), "extreme_kleine.png"),
+    maps = (; map_minor  = read_map(joinpath(prep, "flood_maps"), "grote.png"),
+              map_moderate = read_map(joinpath(prep, "flood_maps"), "middel.png"),
+              map_severe  = read_map(joinpath(prep, "flood_maps"), "kleine.png"),
+              map_catastrophic = read_map(joinpath(prep, "flood_maps"), "extreme_kleine.png"),
               nvm       = read_map(joinpath(prep, "flood_maps"), "nvm_cleaned.png"))
     gev_df = CSV.read(joinpath(prep, "gev", "gev_config_static_2500.csv"), DataFrame)
     gev = Dict(s => Float64.(gev_df[!, Symbol("set$s")]) for s in SETTINGS)

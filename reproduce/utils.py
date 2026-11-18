@@ -19,7 +19,7 @@ from scipy import stats  # noqa: E402
 
 # ─── Paths
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # repository root
 sys.path.insert(0, os.path.join(ROOT, "model"))
 from parameters import model_parameters  # noqa: E402
 DATA = os.path.join(ROOT, "data")
@@ -42,6 +42,7 @@ GEV_SCENARIOS = {1: (10.0, 27.0, 0.1), 2: (15.789, 28.579, 0.5),
 # ─── Plot style
 
 FS = 25                                    # base font size of every figure
+# setting = flood scenario: 0 to 4 for S0 (no floods) to S4, as in the data files
 SETTING_COLORS = {0: "#666666", 1: "#9ECAE1", 2: "#6BAED6", 3: "#3182BD", 4: "#08519C"}
 CHANNEL_COLORS = {"fin": "#2166AC", "strat": "#B2182B"}
 
@@ -58,18 +59,6 @@ def save_figure(fig, name, dpi=200):
     plt.close(fig)
     print(f"wrote {os.path.relpath(path, ROOT)}")
     return path
-
-
-# ─── Statistics
-
-def t_interval(x, level=0.95):
-    """Mean and half-width of the Student-t interval of the mean of x."""
-    x = np.asarray(x, dtype=float)
-    x = x[np.isfinite(x)]
-    n = len(x)
-    if n < 2:
-        return (x.mean() if n else np.nan), np.nan
-    return x.mean(), stats.t.ppf(0.5 + level / 2, n - 1) * x.std(ddof=1) / np.sqrt(n)
 
 
 # ─── Data loaders
@@ -696,7 +685,9 @@ def scorecard(zeta, income, sen, ltv, install):
 
 def draw_applicants(n=ADMISSION_DRAWS, seed=ADMISSION_SEED, zeta_scale=FIXED["zeta_scale"]):
     """Applicants at entry with the distributions of the model (add_agents! in model/model.jl,
-    SI Table 3), their score and admission. Property value v in thousand euro."""
+    SI Table 3), their score and admission. Property value v in thousand euro. The parameters
+    are those of the constants at the top of model/model.jl (INCOME_BURR, SENIORITY_BETA, ...):
+    change both together."""
     rng = np.random.default_rng(seed)
     a = pd.DataFrame({
         "income": rand_burr(rng, 3.30, 0.45, -12.76, 3101.46, n),

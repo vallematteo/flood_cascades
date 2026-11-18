@@ -19,7 +19,7 @@
 #
 # Needs Julia 1.10.4 (Project.toml / Manifest.toml, instantiated). Load it as your cluster
 # requires, for example:  module load Julia/1.10.4-linux-x86_64
-# The raw output (four Parquet files per run, 665,600 files) goes to $RAW_DIR; put it on a
+# The raw output (three Parquet files per run, 499,200 files) goes to $RAW_DIR; put it on a
 # scratch file system.
 # SLURM writes the job log to logs/ before the script starts: create it once with `mkdir logs`
 # in the repository root before submitting.

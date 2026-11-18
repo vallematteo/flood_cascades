@@ -95,14 +95,14 @@ const DELTAS = [0.0]
 @everywhere function run_one(p, maps, gev_list, par, tot_step, warmup)
     model = create_model(;
         rng_seed = p.seed, run_id = p.run_id,
-        kappa = par.kappa, acpt_score = par.acpt_score, settings = p.setting,
+        kappa = par.kappa, acpt_score = par.acpt_score, setting = p.setting,
         add_agents = par.add_agents, rho = par.rho, save_path = "", tot_step = tot_step,
         beta1 = p.beta1, beta2 = p.beta2, beta3 = p.beta3,
         exp_lb = par.exp_lb, eta = par.eta, vartheta = par.vartheta, alpha = par.alpha,
         m = par.m, varepsilon = par.varepsilon, s_ub = par.s_ub, N_nj = par.N_nj,
         save_data_enabled = false,
-        density_map = maps.nvm, m_fgrote = maps.m_fgrote, m_fmiddel = maps.m_fmiddel,
-        m_fklein = maps.m_fklein, m_feklein = maps.m_feklein, gev_list = gev_list,
+        density_map = maps.nvm, map_minor = maps.map_minor, map_moderate = maps.map_moderate,
+        map_severe = maps.map_severe, map_catastrophic = maps.map_catastrophic, gev_list = gev_list,
         lambda = p.lambda, delta = p.delta,
     )
 
@@ -123,11 +123,11 @@ const DELTAS = [0.0]
     n_trig_fin = n_trig_strat = n_fcl_fin = n_fcl_strat = 0
     for k in eachindex(dc.step)
         (warmup <= dc.step[k] < tot_step) || continue
-        dc.default_reason[k] == 1 ? (n_trig_fin += 1) : (n_trig_strat += 1)
+        dc.default_reason[k] == FINANCIAL ? (n_trig_fin += 1) : (n_trig_strat += 1)
     end
     for k in eachindex(fc.step)
         (warmup <= fc.step[k] < tot_step) || continue
-        fc.default_reason[k] == 1 ? (n_fcl_fin += 1) : (n_fcl_strat += 1)
+        fc.default_reason[k] == FINANCIAL ? (n_fcl_fin += 1) : (n_fcl_strat += 1)
     end
 
     # Post-warm-up foreclosures; fc.t is the age of the mortgage in months.
@@ -145,7 +145,7 @@ const DELTAS = [0.0]
         j = get(slot, dc.id[k], 0)
         j == 0 && continue
         n_dis[j] += 1
-        dc.default_reason[k] == 1 ? (n_dis_fin[j] += 1) : (n_dis_strat[j] += 1)
+        dc.default_reason[k] == FINANCIAL ? (n_dis_fin[j] += 1) : (n_dis_strat[j] += 1)
         first_t[j] = min(first_t[j], dc.t[k])
     end
     t_dis_first = [ft == typemax(Int) ? -1 : ft for ft in first_t]
@@ -192,10 +192,10 @@ end
 function main()
     mkpath(A["out_dir"])
     prep = joinpath(ROOT, "preparation")
-    maps = (; m_fgrote  = read_map(joinpath(prep, "flood_maps"), "grote.png"),
-              m_fmiddel = read_map(joinpath(prep, "flood_maps"), "middel.png"),
-              m_fklein  = read_map(joinpath(prep, "flood_maps"), "kleine.png"),
-              m_feklein = read_map(joinpath(prep, "flood_maps"), "extreme_kleine.png"),
+    maps = (; map_minor  = read_map(joinpath(prep, "flood_maps"), "grote.png"),
+              map_moderate = read_map(joinpath(prep, "flood_maps"), "middel.png"),
+              map_severe  = read_map(joinpath(prep, "flood_maps"), "kleine.png"),
+              map_catastrophic = read_map(joinpath(prep, "flood_maps"), "extreme_kleine.png"),
               nvm       = read_map(joinpath(prep, "flood_maps"), "nvm_cleaned.png"))
     gev_df = CSV.read(joinpath(prep, "gev", "gev_config_static_2500.csv"), DataFrame)
     gev = Dict(s => Float64.(gev_df[!, Symbol("set$s")]) for s in SETTINGS)

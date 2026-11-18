@@ -8,7 +8,7 @@ by the run's mean active mortgages times the cell's share of the smoothed housin
 are means over runs. Runs: cascade experiment, delta = 0, kappa = 10, beta1 - beta2 = 0.5,
 vartheta = 0.05; S0 20 runs, S4 60 runs (lambda in {0.25, 0.5, 0.75}).
 
-Run:    python figure_SI2.py
+Run:    python reproduce/figure_SI2.py
 Writes: output/figures/figure_S2.png
 """
 

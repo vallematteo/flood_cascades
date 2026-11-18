@@ -11,6 +11,10 @@ names, so a rerun can be compared with these published files.
 
 `.csv.gz` files are gzip-compressed CSV; pandas reads them directly (`pd.read_csv`).
 
+**`setting` is the flood scenario** in every file (and in the code): 0 to 4 for S0 (no floods)
+to S4. The flood-severity series `preparation/gev/gev_config_static_2500.csv` names the same
+scenarios `set0` to `set4`.
+
 ## `abc_calibration/`
 
 Calibration at the no-flood scenario (rejection ABC). Run on a SLURM cluster, 2026-11-04.

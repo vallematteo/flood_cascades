@@ -11,7 +11,7 @@ Used by: Fig. 3b, SI Figs 3 to 8, SI Table 8, and the numbers of the sensitivity
 | Step | Script | Output |
 |---|---|---|
 | 1. Design | `design.py` | `output/global_sa/design/` (problem definition, Saltelli matrix, candidate designs; published in `data/global_sa/design/`), `output/global_sa/run_list.csv` |
-| 2. Simulation | `run.jl` (`slurm_run.sh`: 5 array tasks of 33,280 runs) | Parquet output per run in `output/global_sa/raw/` (665,600 files) |
+| 2. Simulation | `run.jl` (`slurm_run.sh`: 5 array tasks of 33,280 runs) | Parquet output per run in `output/global_sa/raw/` (three files per run, 499,200 files) |
 | 3. Reduction | `reduce.py` (`slurm_reduce.sh`) | `output/global_sa/reduced/runs_set{0-4}.csv.gz` (per run), `vectors_set{0-4}.csv` (per vector); published in `data/global_sa/` |
 
 Every script writes to `output/global_sa/` (reductions to `output/global_sa/reduced/`) and never to
