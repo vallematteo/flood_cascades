@@ -18,8 +18,10 @@ Rasters on the model grid, read by `model/utils.jl` (`read_map`).
 | `extreme_kleine.png` | extremely rare floods (catastrophic tier) |
 | `nvm_cleaned.png` | housing density |
 
-Source: Dutch national flood risk maps (Overstromingsrisicokaarten, IPO 2019), preprocessed to the
-model grid as described in the SI.
+Sources: flood maps from the Dutch national flood risk maps (Overstromingsrisicokaarten, IPO
+2019); housing density (`nvm_cleaned.png`) from NVM, the Dutch Association of Real Estate Agents
+(Nederlandse Vereniging van Makelaars). Both are preprocessed to the model grid as described in
+the SI.
 
 **Grid and resolution.** The five rasters share one grid of 290 x 723 cells, the grid of the
 housing-density map; each pixel is one model cell, and the model reads the pixels as they are.

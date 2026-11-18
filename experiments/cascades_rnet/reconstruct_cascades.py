@@ -40,6 +40,13 @@ RNG_SEED = 1      # parent draws of run r use the seed RNG_SEED + r
 _OVERLAP = {}
 
 
+def chunk_order(path):
+    """Sort key of the chunk files: numbered chunks (fcl_chunk0.csv ... fcl_chunk12.csv, from the full
+    design) in numeric order, then any other name (fcl_chunk_check.csv, from run.jl --run-ids) by name."""
+    m = re.search(r"(\d+)\.csv$", path)
+    return (0, int(m.group(1)), "") if m else (1, 0, os.path.basename(path))
+
+
 def overlap_table(k):
     """W[dy + 2k, dx + 2k] = number of cells within k of both (0, 0) and (dx, dy)."""
     if k in _OVERLAP:
@@ -152,7 +159,7 @@ def main():
     rows = []
     with Pool(a.workers) as pool:
         for path in sorted(glob.glob(os.path.join(a.raw_dir, "fcl_chunk*.csv")),
-                           key=lambda p: int(re.findall(r"(\d+)\.csv$", p)[0])):
+                           key=chunk_order):
             fcl = pd.read_csv(path, float_precision="round_trip")
             jobs = [(meta.loc[rid].to_dict(), g, RNG_SEED + int(rid))
                     for rid, g in fcl.groupby("run_id") if rid in meta.index and meta.loc[rid, "delta"] > 0]

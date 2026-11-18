@@ -32,6 +32,13 @@ KAPPA, BETA2, VARTHETA = 10.0, 0.5, 0.05
 TRUNC = 12
 
 
+def chunk_order(path):
+    """Sort key of the chunk files: numbered chunks (fcl_chunk0.csv ... fcl_chunk12.csv, from the full
+    design) in numeric order, then any other name (fcl_chunk_check.csv, from run.jl --run-ids) by name."""
+    m = re.search(r"(\d+)\.csv$", path)
+    return (0, int(m.group(1)), "") if m else (1, 0, os.path.basename(path))
+
+
 def clusters(step, x, y, k, lo, hi):
     """Component sizes of the graph linking every foreclosure at t to every one at t - 1 within
     2k; components kept when their earliest member is in [lo, hi]."""
@@ -91,7 +98,7 @@ def main():
     hists, summaries = [], []
     with Pool(a.workers) as pool:
         for path in sorted(glob.glob(os.path.join(a.raw_dir, "fcl_chunk*.csv")),
-                           key=lambda p: int(re.findall(r"(\d+)\.csv$", p)[0])):
+                           key=chunk_order):
             f = pd.read_csv(path, usecols=["run_id", "step", "x", "y"])
             f = f[f.run_id.isin(runs.index)]
             jobs = [(int(rid), int(round(runs.loc[rid, "kappa"])), int(runs.loc[rid, "warmup"]),
