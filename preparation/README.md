@@ -19,7 +19,30 @@ Rasters on the model grid, read by `model/utils.jl` (`read_map`).
 | `nvm_cleaned.png` | housing density |
 
 Source: Dutch national flood risk maps (Overstromingsrisicokaarten, IPO 2019), preprocessed to the
-model grid as described in the SI. TODO: housing-density source, preprocessing script, licence.
+model grid as described in the SI. TODO: housing-density source, licence.
+
+**Grid and resolution.** The five rasters share one grid of 290 x 723 cells, the grid of the
+housing-density map; each pixel is one model cell, and the model reads the pixels as they are.
+The national flood risk maps have a much finer resolution than the density map. They were
+brought onto its grid in QGIS by downsampling with mean aggregation (Lin, 2024): each model cell
+holds the average of the source pixels it covers, and the result was cut to the province of
+Limburg with a binary mask. Two consequences:
+
+- A cell that lies entirely within one depth class of the source map keeps that class's value.
+  This holds for 94 to 97% of flooded cells, so D takes one of six discrete levels almost
+  everywhere. A cell on the edge of a flood or between two depth classes takes an intermediate
+  value (the other 3 to 6%).
+- A cell counts as flooded (D > 0) if any of its source pixels is flooded, so the flood extent
+  on the model grid can be slightly larger than in the source map.
+
+The files here are the downsampled maps that every simulation reads. The original
+full-resolution maps and the QGIS step are not part of this package, so the downsampling
+cannot be rerun from it. A replacement map must have the same 290 x 723 dimensions: the model
+does not resample, and it does not check the dimensions.
+
+Lin, C. (2024). *ESG climate risk stress testing with flood as a key risk factor in mortgage
+models: an agent-based approach*. MSc thesis, University of Amsterdam.
+https://scripties.uba.uva.nl/search?id=record_54518
 
 ## `gev/`
 
