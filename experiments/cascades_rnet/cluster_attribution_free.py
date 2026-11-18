@@ -12,9 +12,9 @@ The weighted trees of reconstruct_cascades.py rest on the within-month counterfa
 Runs: kappa = 10, beta2 = 0.5 (beta1 - beta2 = 0.5), vartheta = 0.05, every scenario,
 lambda and delta.
 
-Run:    uv run python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
-Writes: data/cascades_rnet/af_sizes_by_run.csv  run_id, size, count, method (= af)
-        data/cascades_rnet/af_runs.csv          per run: foreclosures, clusters, largest cluster
+Run:    python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
+Writes: <out-dir>/af_sizes_by_run.csv  run_id, size, count, method (= af)
+        <out-dir>/af_runs.csv          per run: foreclosures, clusters, largest cluster
 """
 import argparse
 import glob
@@ -27,7 +27,7 @@ import pandas as pd
 from scipy.spatial import cKDTree
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = os.path.join(ROOT, "data", "cascades_rnet")
+OUT_DIR = os.path.join(ROOT, "output", "cascades_rnet", "reduced")   # never data/: see REPRODUCE.md
 KAPPA, BETA2, VARTHETA = 10.0, 0.5, 0.05
 TRUNC = 12
 
@@ -77,9 +77,10 @@ def process_run(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-dir", required=True)
+    ap.add_argument("--out-dir", default=OUT_DIR, help="default: output/cascades_rnet/reduced")
     ap.add_argument("--workers", type=int, default=max(1, os.cpu_count() - 1))
     a = ap.parse_args()
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(a.out_dir, exist_ok=True)
 
     runs = pd.concat(pd.read_csv(p, usecols=["run_id", "success", "setting", "lambda", "kappa", "beta2", "vartheta",
                                               "delta", "seed", "warmup", "tot_step"])
@@ -101,11 +102,11 @@ def main():
             print(f"{os.path.basename(path)}: {len(jobs)} runs", flush=True)
 
     sizes = pd.DataFrame(hists, columns=["run_id", "size", "count"]).assign(method="af")
-    sizes.to_csv(os.path.join(OUT, "af_sizes_by_run.csv"), index=False)
+    sizes.to_csv(os.path.join(a.out_dir, "af_sizes_by_run.csv"), index=False)
     per_run = pd.DataFrame(summaries).merge(
         runs[["run_id", "setting", "lambda", "delta", "seed"]].reset_index(drop=True), on="run_id")
-    per_run.to_csv(os.path.join(OUT, "af_runs.csv"), index=False)
-    print(f"{len(per_run)} runs -> af_sizes_by_run.csv, af_runs.csv in {OUT}")
+    per_run.to_csv(os.path.join(a.out_dir, "af_runs.csv"), index=False)
+    print(f"{len(per_run)} runs -> af_sizes_by_run.csv, af_runs.csv in {a.out_dir}")
 
 
 if __name__ == "__main__":

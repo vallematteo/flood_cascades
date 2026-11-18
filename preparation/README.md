@@ -19,7 +19,7 @@ Rasters on the model grid, read by `model/utils.jl` (`read_map`).
 | `nvm_cleaned.png` | housing density |
 
 Source: Dutch national flood risk maps (Overstromingsrisicokaarten, IPO 2019), preprocessed to the
-model grid as described in the SI. TODO: housing-density source, licence.
+model grid as described in the SI.
 
 **Grid and resolution.** The five rasters share one grid of 290 x 723 cells, the grid of the
 housing-density map; each pixel is one model cell, and the model reads the pixels as they are.

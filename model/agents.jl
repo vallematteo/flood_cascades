@@ -34,7 +34,6 @@ using Agents, Distributions
     pti::Float64            # payment-to-income ratio
     v::Float64              # house value
     c::Float64              # collateral
-    sp::Float64             # floor area of the property
     delta_p::Float64        # flood loss of house value, lambda D v
     psi_1::Float64          # strategic-default threshold (redrawn every month)
     psi_2::Float64          # employment threshold (fixed at entry)
@@ -58,7 +57,7 @@ Construct a Household and add it to the model at grid position (x, y).
 function create_household(model, x::Int, y::Int,
                           fgrote, fmiddel, fklein, feklein,
                           zeta, income, sen, living_exp,
-                          w, ltv, p, v, sp, n, l)
+                          w, ltv, p, v, n, l)
     # two independent draws: psi_1 sets the strategic-default threshold and is redrawn
     # every month; psi_2 sets the employment type and stays fixed
     psi_1_val = rand(abmrng(model), Uniform(0.0, 1.0))
@@ -91,7 +90,6 @@ function create_household(model, x::Int, y::Int,
         pti = pti_val,
         v = Float64(v),
         c = Float64(v),
-        sp = Float64(sp),
         delta_p = 0.0,
         psi_1 = psi_1_val,
         psi_2 = psi_2_val,
@@ -290,8 +288,8 @@ function find_flood_map!(agent::Household, props)
 end
 
 """
-Household-by-household computation of U, the reference against which the grid sums
-of `cascade_phase!` are tested. The model itself does not call it.
+Household-by-household computation of U, equal to the grid sums of `cascade_phase!`.
+The model itself does not call it.
 """
 function neighbor_utility(agent::Household, model)
     props = abmproperties(model)

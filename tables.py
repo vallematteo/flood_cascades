@@ -10,7 +10,7 @@
     SI Table 9    cascades per run, large cascades per 1,000 cascades and per run, S0, S1, S4
     SI Table 10   S0: share of foreclosures in large cascades, R_gross, R_net, M, mean tree size
 
-Run:    uv run python tables.py
+Run:    python tables.py
 Writes: output/tables/table_1.tex, table_S5.tex, table_S6.tex, table_S8.tex, table_S9.tex, table_S10.tex
 """
 import os

@@ -11,21 +11,24 @@ the lowest centered L2-discrepancy is kept.
 Each vector runs in the five flood scenarios with ten seeds, np.random.default_rng(56)
 .integers(0, 2**31, 10): 3,328 x 5 x 10 = 166,400 runs.
 
-Run:    uv run python experiments/global_sa/design.py
-Writes: data/global_sa/design/problem_definition.csv   parameter names and sampling ranges
-        data/global_sa/design/saltelli_matrix.csv      the 3,328 vectors, by saltelli_sample_id
-        data/global_sa/design/design_config.csv        candidate seeds, discrepancies, the chosen seed
+Run:    python experiments/global_sa/design.py
+Writes: output/global_sa/design/problem_definition.csv   parameter names and sampling ranges
+        output/global_sa/design/saltelli_matrix.csv      the 3,328 vectors, by saltelli_sample_id
+        output/global_sa/design/design_config.csv        candidate seeds, discrepancies, the chosen seed
         output/global_sa/run_list.csv                  one row per run (run_id, scenario, seed, vector), read by run.jl
 """
 import math
 import os
+import sys
 
 import numpy as np
 import pandas as pd
 from SALib.sample import sobol
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DESIGN_DIR = os.path.join(ROOT, "data", "global_sa", "design")
+sys.path.insert(0, os.path.join(ROOT, "model"))
+from parameters import model_parameters  # noqa: E402
+DESIGN_DIR = os.path.join(ROOT, "output", "global_sa", "design")   # data/global_sa/design/ is the published copy
 RUN_LIST = os.path.join(ROOT, "output", "global_sa", "run_list.csv")
 
 N_SAMPLES = 256
@@ -34,8 +37,11 @@ BASE_SEED = 56          # first candidate sampling seed, and the seed of the rep
 N_SEEDS = 10
 SETTINGS = [0, 1, 2, 3, 4]
 
-# Baseline values that centre the ranges of m, varepsilon and exp_lb (initialization).
-M_BASE, VAREPSILON_BASE, EXP_LB_BASE = 6.2, 0.00198, 1087
+# Baseline values that centre the ranges of m, varepsilon and exp_lb (model/parameters.csv): the
+# estimates of preparation/initialization/baseline_parameters.csv (6.2229, 0.0019835, 1087.33)
+# rounded, as in the paper.
+_P = model_parameters("baseline")
+M_BASE, VAREPSILON_BASE, EXP_LB_BASE = _P["m"], _P["varepsilon"], _P["exp_lb"]
 
 PROBLEM = {
     "num_vars": 11,

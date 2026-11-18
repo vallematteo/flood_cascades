@@ -5,7 +5,7 @@ Percentage change of M = 1/(1 - R_net) between each flood scenario and S0, per s
 Student-t bands over 20 seeds. Slice: calibrated parametrisation, kappa = 10,
 beta1 - beta2 = 0.5, vartheta = 0.05.
 
-Run:    uv run python figure_SI9.py
+Run:    python figure_SI9.py
 Writes: output/figures/figure_S9.png
 """
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ def main():
 
     fig, ax = plt.subplots(figsize=(13, 8.5))
     for s in range(1, 5):
-        curve(ax, fl[fl.setting == s].drop(columns="delta").rename(columns={"x": "delta"}), "dR_net", SETTING_COLORS[s])
+        curve(ax, fl[fl.setting == s].drop(columns="delta").rename(columns={"x": "delta"}), "dM_net", SETTING_COLORS[s])
     ax.set_title(r"$M(\mathcal{S}) / M(\mathcal{S}_0) - 1$ (%)", fontsize=FS, fontweight="bold")
     style_axes(ax, r"$\delta$", r"% change in $M$", zero=True)
     delta_axis(ax, deltas)

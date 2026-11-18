@@ -10,8 +10,8 @@ smoothing is linear, so these counts reproduce them exactly.
 Runs kept: main block, no spillover (delta = 0), kappa = 10, beta1 - beta2 = 0.5
 (beta2 = 0.5), vartheta = 0.05, every flood scenario and damage share.
 
-Run:    uv run python experiments/cascades_rnet/reduce_fcl_cells.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
-Writes: data/cascades_rnet/fcl_cells.csv.gz   (run_id, x, y, channel (1 financial, 0 strategic),
+Run:    python experiments/cascades_rnet/reduce_fcl_cells.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
+Writes: <out-dir>/fcl_cells.csv.gz   (run_id, x, y, channel (1 financial, 0 strategic),
         flooded (1 if the home was damaged in the month of foreclosure), n_fcl)
 """
 import argparse
@@ -23,7 +23,7 @@ import pandas as pd
 
 GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = os.path.join(ROOT, "data", "cascades_rnet", "fcl_cells.csv.gz")
+OUT_DIR = os.path.join(ROOT, "output", "cascades_rnet", "reduced")   # never data/: see REPRODUCE.md
 
 
 def map_runs(raw_dir):
@@ -48,12 +48,14 @@ def count_cells(raw_dir, runs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-dir", required=True)
+    ap.add_argument("--out-dir", default=OUT_DIR, help="default: output/cascades_rnet/reduced")
     a = ap.parse_args()
     runs = map_runs(a.raw_dir)
     cells = count_cells(a.raw_dir, runs)
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    cells.to_csv(OUT, index=False, compression=GZIP)
-    print(f"{len(runs)} runs, {cells.n_fcl.sum():,} foreclosures in {len(cells):,} (run, cell) rows -> {OUT}")
+    os.makedirs(a.out_dir, exist_ok=True)
+    out = os.path.join(a.out_dir, "fcl_cells.csv.gz")
+    cells.to_csv(out, index=False, compression=GZIP)
+    print(f"{len(runs)} runs, {cells.n_fcl.sum():,} foreclosures in {len(cells):,} (run, cell) rows -> {out}")
 
 
 if __name__ == "__main__":

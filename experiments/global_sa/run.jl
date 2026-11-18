@@ -15,8 +15,8 @@
       calibration           output/abc_calibration/run_list.csv (experiments/abc_calibration/design.py, 10,010 runs)
       zeta_scale test       output/zeta_scale/run_list.csv      (experiments/zeta_scale/design.py, 505 runs)
 
-    Parameters not in the run list are fixed at their baseline values (below); zeta_scale
-    takes the model default (0.015) unless the run list has a zeta_scale column.
+    Parameters not in the run list take their values in model/parameters.csv (set "fixed");
+    so does zeta_scale, unless the run list has a zeta_scale column.
 
     Usage (from the repository root):
       one chunk of a run list on a cluster node:  experiments/global_sa/slurm_run.sh
@@ -63,10 +63,11 @@ end
 end
 using Printf
 
-const TOT_STEP = 400
-
-# Parameters not sampled, at their baseline values.
-const FIXED = (acpt_score = 200.0, add_agents = true, rho = 4.0, alpha = 150.0, s_ub = 1.0, N_nj = 35)
+# Parameters not in the run list, from model/parameters.csv.
+const P = model_parameters("fixed")
+const TOT_STEP = Int(P[:tot_step])
+const FIXED = (acpt_score = P[:acpt_score], add_agents = P[:add_agents] == 1, rho = P[:rho], alpha = P[:alpha],
+               s_ub = P[:s_ub], N_nj = Int(P[:N_nj]), zeta_scale = P[:zeta_scale])
 
 # ─── One run
 
@@ -84,7 +85,7 @@ const FIXED = (acpt_score = 200.0, add_agents = true, rho = 4.0, alpha = 150.0, 
         density_map = maps.nvm, m_fgrote = maps.m_fgrote, m_fmiddel = maps.m_fmiddel,
         m_fklein = maps.m_fklein, m_feklein = maps.m_feklein, gev_list = gev_list,
         lambda = Float64(p.lambda), delta = Float64(p.delta),
-        (hasproperty(p, :zeta_scale) ? (; zeta_scale = Float64(p.zeta_scale)) : (;))...,
+        zeta_scale = hasproperty(p, :zeta_scale) ? Float64(p.zeta_scale) : fixed.zeta_scale,
     )
     for _ in 1:tot_step
         model_step!(model)        # writes the Parquet output at the last step

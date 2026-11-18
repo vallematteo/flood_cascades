@@ -14,9 +14,9 @@ The band is the minimum and maximum of the yearly rates, rounded to two decimals
 ## Reproduce
 
 ```bash
-python build_calibration_targets.py                                   # yearly rates and bands
-python build_calibration_targets.py --verify-pdfs ./source_pdfs       # download the PDFs, check every quote
-python build_calibration_targets.py --refresh-cbs                     # compare with the live CBS table
+python preparation/calibration_targets/build_calibration_targets.py                                   # yearly rates and bands
+python preparation/calibration_targets/build_calibration_targets.py --verify-pdfs ./source_pdfs       # download the PDFs, check every quote
+python preparation/calibration_targets/build_calibration_targets.py --refresh-cbs                     # compare with the live CBS table
 ```
 
 Requirements: Python 3 with pandas; `pdftotext` (poppler) for `--verify-pdfs`.

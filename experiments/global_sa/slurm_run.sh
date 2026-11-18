@@ -11,7 +11,7 @@
 
 # Global sensitivity analysis: the 166,400 runs of output/global_sa/run_list.csv in five
 # array tasks of 33,280 runs, one node each. Submit from the repository root, after
-#     uv run python experiments/global_sa/design.py
+#     python experiments/global_sa/design.py
 # with
 #     sbatch experiments/global_sa/slurm_run.sh
 # and then the reduction, once all tasks have finished:
@@ -21,10 +21,12 @@
 # requires, for example:  module load Julia/1.10.4-linux-x86_64
 # The raw output (four Parquet files per run, 665,600 files) goes to $RAW_DIR; put it on a
 # scratch file system.
+# SLURM writes the job log to logs/ before the script starts: create it once with `mkdir logs`
+# in the repository root before submitting.
 
 set -euo pipefail
 RAW_DIR="${RAW_DIR:-output/global_sa/raw}"
-mkdir -p logs "$RAW_DIR"
+mkdir -p "$RAW_DIR"
 echo "Job ${SLURM_ARRAY_JOB_ID:-local}[${SLURM_ARRAY_TASK_ID:-0}] on $(hostname), $(date)"
 
 julia --project=. experiments/global_sa/run.jl \

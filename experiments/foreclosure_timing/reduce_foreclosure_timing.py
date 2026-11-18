@@ -8,9 +8,9 @@ foreclosure, only the variables used by Fig. 5, SI Figs 11 and 12 and the quoted
 
 Designs: gap (beta1 - beta2 from 0.45 to 0.7) and beta3 (beta3 from 0.5 to 2).
 
-Run:    uv run python experiments/foreclosure_timing/reduce_foreclosure_timing.py [--runner-dir output/foreclosure_timing/raw]
-Writes: data/foreclosure_timing/{gap,beta3}_runs.csv
-        data/foreclosure_timing/{gap,beta3}_foreclosures.csv.gz
+Run:    python experiments/foreclosure_timing/reduce_foreclosure_timing.py [--runner-dir output/foreclosure_timing/raw] [--out-dir output/foreclosure_timing/reduced]
+Writes: <out-dir>/{gap,beta3}_runs.csv
+        <out-dir>/{gap,beta3}_foreclosures.csv.gz
 """
 import argparse
 import os
@@ -19,7 +19,7 @@ import pandas as pd
 
 GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = os.path.join(ROOT, "data", "foreclosure_timing")
+OUT_DIR = os.path.join(ROOT, "output", "foreclosure_timing", "reduced")   # never data/: see REPRODUCE.md
 
 DESIGNS = ["gap", "beta3"]
 
@@ -52,12 +52,13 @@ def reduce_design(runner_dir, design):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runner-dir", default=os.path.join(ROOT, "output", "foreclosure_timing", "raw"))
+    ap.add_argument("--out-dir", default=OUT_DIR, help="default: output/foreclosure_timing/reduced")
     a = ap.parse_args()
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(a.out_dir, exist_ok=True)
     for name in DESIGNS:
         runs, fcl = reduce_design(a.runner_dir, name)
-        runs.to_csv(os.path.join(OUT, f"{name}_runs.csv"), index=False)
-        fcl.to_csv(os.path.join(OUT, f"{name}_foreclosures.csv.gz"), index=False, compression=GZIP)
+        runs.to_csv(os.path.join(a.out_dir, f"{name}_runs.csv"), index=False)
+        fcl.to_csv(os.path.join(a.out_dir, f"{name}_foreclosures.csv.gz"), index=False, compression=GZIP)
         print(f"{name}: {len(runs)} runs, {len(fcl):,} foreclosures")
 
 

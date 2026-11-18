@@ -14,9 +14,9 @@ delta, seed):
 
 Rates are annual foreclosures per 100 active mortgages over the post-warm-up window.
 
-Run:    uv run python experiments/cascades_rnet/reduce_runs.py --raw-dir <folder with runs_chunk*.csv>
-Writes: data/cascades_rnet/runs_all.csv.gz     all successful runs, one row each
-        data/cascades_rnet/paired_seed.csv.gz  per (cell, seed): rates, R_net, C, R_gross, flood, C_S0, I
+Run:    python experiments/cascades_rnet/reduce_runs.py --raw-dir <folder with runs_chunk*.csv>
+Writes: <out-dir>/runs_all.csv.gz     all successful runs, one row each
+        <out-dir>/paired_seed.csv.gz  per (cell, seed): rates, R_net, C, R_gross, flood, C_S0, I
 """
 import argparse
 import glob
@@ -27,7 +27,7 @@ import pandas as pd
 
 GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = os.path.join(ROOT, "data", "cascades_rnet")
+OUT_DIR = os.path.join(ROOT, "output", "cascades_rnet", "reduced")   # never data/: see REPRODUCE.md
 CELL = ["setting", "lambda", "kappa", "beta2", "vartheta", "delta"]
 BASE = ["setting", "lambda", "kappa", "beta2", "vartheta"]      # cell without delta
 
@@ -82,13 +82,14 @@ def pair(runs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-dir", required=True)
+    ap.add_argument("--out-dir", default=OUT_DIR, help="default: output/cascades_rnet/reduced")
     a = ap.parse_args()
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(a.out_dir, exist_ok=True)
     runs = read_runs(a.raw_dir)
-    runs.to_csv(os.path.join(OUT, "runs_all.csv.gz"), index=False, compression=GZIP)
+    runs.to_csv(os.path.join(a.out_dir, "runs_all.csv.gz"), index=False, compression=GZIP)
     paired = pair(runs)
-    paired.to_csv(os.path.join(OUT, "paired_seed.csv.gz"), index=False, compression=GZIP)
-    print(f"{len(runs):,} runs -> runs_all.csv.gz, paired_seed.csv.gz in {OUT}")
+    paired.to_csv(os.path.join(a.out_dir, "paired_seed.csv.gz"), index=False, compression=GZIP)
+    print(f"{len(runs):,} runs -> runs_all.csv.gz, paired_seed.csv.gz in {a.out_dir}")
 
 
 if __name__ == "__main__":

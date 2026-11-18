@@ -11,21 +11,25 @@ Used by: Fig. 2, SI Table 6, and the calibration numbers.
 
 | Step | Script | Output |
 |---|---|---|
-| 1. Design | `design.py` | `data/abc_calibration/design.csv`, `output/abc_calibration/run_list.csv` |
+| 1. Design | `design.py` | `output/abc_calibration/design.csv` (published in `data/abc_calibration/`), `output/abc_calibration/run_list.csv` |
 | 2. Simulation | `experiments/global_sa/run.jl` | Parquet output per run in `output/abc_calibration/raw/` |
-| 3. Reduction | `experiments/global_sa/reduce.py --runs-only` | `data/abc_calibration/runs_set0.csv.gz` (per run: foreclosure rate, distress share) |
+| 3. Reduction | `experiments/global_sa/reduce.py --runs-only` | `output/abc_calibration/reduced/runs_set0.csv.gz` (per run: foreclosure rate, distress share; published in `data/abc_calibration/`) |
 
 `slurm_run.sh` runs steps 2 and 3 in one job on a cluster node.
 
+Every script writes to `output/abc_calibration/` (reductions to `output/abc_calibration/reduced/`) and never to
+`data/`, so the published files in `data/abc_calibration/` stay as the reference to compare a rerun with
+(see [REPRODUCE.md](../../REPRODUCE.md#experiments)).
+
 ## Run
 
-    uv run python experiments/abc_calibration/design.py
+    python experiments/abc_calibration/design.py
     sbatch experiments/abc_calibration/slurm_run.sh
 
 The 10 runs of one combination on a laptop, for example the calibrated combination 226:
 
     julia --project=. experiments/global_sa/run.jl --run-list output/abc_calibration/run_list.csv --sample-ids 226 --raw-dir output/abc_check
-    uv run python experiments/global_sa/reduce.py --run-list output/abc_calibration/run_list.csv --raw-dir output/abc_check --out-dir output/abc_check/reduced --runs-only
+    python experiments/global_sa/reduce.py --run-list output/abc_calibration/run_list.csv --raw-dir output/abc_check --out-dir output/abc_check/reduced --runs-only
 
 ## Reproducibility
 

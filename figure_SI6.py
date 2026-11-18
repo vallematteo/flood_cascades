@@ -5,7 +5,7 @@ bootstrap intervals); (c) median PAWN indices with S = 10 conditioning intervals
 blocks of the design (512 vectors), bars from the minimum to the maximum over the intervals,
 dotted line at the 95% max-T threshold of 10,000 permutations.
 
-Run:    uv run python figure_SI6.py
+Run:    python figure_SI6.py
 Writes: output/figures/figure_S6a.png, figure_S6b.png, figure_S6c.png
 """
 from utils import pawn_figure, sobol_figure

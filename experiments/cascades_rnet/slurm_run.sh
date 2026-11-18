@@ -12,17 +12,21 @@
 # Submit from the repository root:
 #     sbatch experiments/cascades_rnet/slurm_run.sh
 #
-# Needs Julia 1.10.4 (the environment in Project.toml / Manifest.toml, instantiated) and uv
-# (https://docs.astral.sh/uv/; `uv sync` once in the repository). Load Julia as your cluster
+# Needs Julia 1.10.4 (the environment in Project.toml / Manifest.toml, instantiated) and the
+# Python environment (`uv sync` once, README, Installation guide). Load Julia as your cluster
 # requires, for example:
 #     module load Julia/1.10.4-linux-x86_64
 #
-# The raw output (about 1.5 GB) goes to $RAW_DIR; the reduced files go to data/cascades_rnet/.
-# On a 192-core node (AMD Genoa) the simulation took TODO hours.
+# The raw output (about 1.4 GB) goes to $RAW_DIR; the reduced files go to output/cascades_rnet/reduced/.
+# On one 192-core cluster node (AMD Genoa) the simulation took 75 minutes and the reduction
+# about 3 minutes.
+# SLURM writes the job log to logs/ before the script starts: create it once with `mkdir logs`
+# in the repository root before submitting.
 
 set -euo pipefail
 RAW_DIR="${RAW_DIR:-output/cascades_rnet/raw}"
-mkdir -p logs "$RAW_DIR"
+mkdir -p "$RAW_DIR"
+source .venv/bin/activate
 
 echo "Job ${SLURM_JOB_ID:-local} on $(hostname), $(date)"
 
@@ -31,10 +35,10 @@ julia --project=. experiments/cascades_rnet/run.jl \
     --num-workers "${SLURM_NTASKS:-4}" \
     --out-dir "$RAW_DIR"
 
-# 2. Reduction to data/cascades_rnet/
-uv run python experiments/cascades_rnet/reduce_runs.py              --raw-dir "$RAW_DIR"
-uv run python experiments/cascades_rnet/reconstruct_cascades.py     --raw-dir "$RAW_DIR" --workers 64
-uv run python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir "$RAW_DIR" --workers 64
-uv run python experiments/cascades_rnet/reduce_fcl_cells.py         --raw-dir "$RAW_DIR"
+# 2. Reduction to output/cascades_rnet/reduced/
+python experiments/cascades_rnet/reduce_runs.py              --raw-dir "$RAW_DIR"
+python experiments/cascades_rnet/reconstruct_cascades.py     --raw-dir "$RAW_DIR" --workers 64
+python experiments/cascades_rnet/cluster_attribution_free.py --raw-dir "$RAW_DIR" --workers 64
+python experiments/cascades_rnet/reduce_fcl_cells.py         --raw-dir "$RAW_DIR"
 
 echo "Done: $(date)"

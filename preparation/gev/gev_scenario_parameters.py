@@ -7,7 +7,7 @@ peak of GEV(10, 27, 0.2) sits. S1 keeps mu = 10, sigma = 27 with xi = 0.1.
 
 xi > 0 is the heavy tailed case. scipy uses c = -xi.
 
-Run:  python preparation/gev_scenario_parameters.py
+Run:  python preparation/gev/gev_scenario_parameters.py
 """
 import numpy as np
 from scipy.stats import genextreme

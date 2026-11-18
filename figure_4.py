@@ -8,7 +8,7 @@
     share of foreclosures in large cascades.
 Slice: calibrated parametrisation, kappa = 10, beta1 - beta2 = 0.5, vartheta = 0.05.
 
-Run:    uv run python figure_4.py
+Run:    python figure_4.py
 Writes: output/figures/figure_4.png
 """
 import matplotlib.pyplot as plt
@@ -26,9 +26,9 @@ GROUP_LABELS = {"S0": r"$\mathcal{S}_0$", "S1": r"$\mathcal{S}_1$", "S4": r"$\ma
 
 def multiplier_panel(ax, flooded, s0r, dodge=0.15):
     deltas, fl, s0 = delta_positions(flooded, s0r)
-    points(ax, s0, "x", "R_net", SETTING_COLORS[0], scenario_label(0), dx=-2 * dodge)
+    points(ax, s0, "x", "M_net", SETTING_COLORS[0], scenario_label(0), dx=-2 * dodge)
     for s in range(1, 5):
-        points(ax, fl[fl.setting == s], "x", "R_net", SETTING_COLORS[s], scenario_label(s), dx=(s - 2) * dodge)
+        points(ax, fl[fl.setting == s], "x", "M_net", SETTING_COLORS[s], scenario_label(s), dx=(s - 2) * dodge)
     ax.set_title(r"(a) $M$", fontsize=FS, fontweight="bold")
     style_axes(ax, r"$\delta$", r"$M$")
     level_axis(ax, multiplier=True)

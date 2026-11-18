@@ -11,10 +11,10 @@ Inputs (all in this folder):
     cbs_83834NED_mortgaged_households.csv  CBS denominator, one block of rows per pull date (vintage)
 
 Usage:
-    python build_calibration_targets.py                      # bands + per-year tables
-    python build_calibration_targets.py --verify-pdfs DIR    # download the PDFs into DIR and check
+    python preparation/calibration_targets/build_calibration_targets.py                      # bands + per-year tables
+    python preparation/calibration_targets/build_calibration_targets.py --verify-pdfs DIR    # download the PDFs into DIR and check
                                                              # every verify_text on its stated page
-    python build_calibration_targets.py --refresh-cbs        # compare the stored CBS vintage
+    python preparation/calibration_targets/build_calibration_targets.py --refresh-cbs        # compare the stored CBS vintage
                                                              # with the current StatLine API
 
 --verify-pdfs needs `pdftotext` (poppler) on the PATH. Values read from chart labels have no

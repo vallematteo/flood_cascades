@@ -1,15 +1,14 @@
 #!/bin/bash
 # Every figure, table and number of the paper and the SI from the data in data/ (level A).
-# Run from the repository root after `uv sync`:
+# Run from the repository root, with the Python environment active (README, Installation guide):
 #     bash reproduce.sh
-# Writes output/figures/, output/tables/ and output/numbers.csv; the last step exits with an
-# error if a number does not match the paper.
+# Writes output/figures/, output/tables/ and output/numbers.csv.
 
 set -euo pipefail
 run() {
     local start=$SECONDS
     echo "== $*"
-    uv run python "$@"
+    python "$@"
     echo "   ($((SECONDS - start)) s)"
 }
 

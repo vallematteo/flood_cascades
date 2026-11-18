@@ -20,22 +20,25 @@ Per parameter vector, seeds pooled (vectors_set<s>.csv; sensitivity analysis onl
     mean_months                  distress months per household that ever entered distress,
                                  over all households of all seeds
 
-Run:    uv run python experiments/global_sa/reduce.py                     (sensitivity analysis)
-        uv run python experiments/global_sa/reduce.py --run-list output/abc_calibration/run_list.csv \\
-            --raw-dir output/abc_calibration/raw --out-dir data/abc_calibration --runs-only
+Run:    python experiments/global_sa/reduce.py                     (sensitivity analysis)
+        python experiments/global_sa/reduce.py --run-list output/abc_calibration/run_list.csv \\
+            --raw-dir output/abc_calibration/raw --out-dir output/abc_calibration/reduced --runs-only
 Writes: <out-dir>/runs_set<s>.csv.gz and <out-dir>/vectors_set<s>.csv for every scenario s
 """
 import argparse
 import multiprocessing
 import os
+import sys
 
 import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "model"))
+from parameters import model_parameters  # noqa: E402
 GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
-WARMUP = 100
-TOT_STEP = 400
+_P = model_parameters("fixed")                      # model/parameters.csv
+WARMUP, TOT_STEP = int(_P["warmup"]), int(_P["tot_step"])
 ID_COLUMNS = ["run_id", "saltelli_sample_id", "sample_id", "setting", "seed_index", "seed"]
 
 
@@ -97,7 +100,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-list", default=os.path.join(ROOT, "output", "global_sa", "run_list.csv"))
     ap.add_argument("--raw-dir", default=os.path.join(ROOT, "output", "global_sa", "raw"))
-    ap.add_argument("--out-dir", default=os.path.join(ROOT, "data", "global_sa"))
+    ap.add_argument("--out-dir", default=os.path.join(ROOT, "output", "global_sa", "reduced"),
+                    help="default: output/global_sa/reduced (never data/: see REPRODUCE.md)")
     ap.add_argument("--runs-only", action="store_true", help="per-run table only (calibration)")
     ap.add_argument("--workers", type=int, default=int(os.environ.get("SLURM_NTASKS", os.cpu_count())))
     a = ap.parse_args()

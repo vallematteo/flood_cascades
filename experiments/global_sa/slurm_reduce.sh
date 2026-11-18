@@ -9,10 +9,13 @@
 #SBATCH --time=02:00:00
 
 # Reduction of the global sensitivity analysis: the Parquet output in $RAW_DIR to
-# data/global_sa/runs_set{0-4}.csv.gz and vectors_set{0-4}.csv. Needs uv (`uv sync` once).
+# output/global_sa/reduced/runs_set{0-4}.csv.gz and vectors_set{0-4}.csv. Needs the Python environment
+# (`uv sync` once, README, Installation guide).
+# SLURM writes the job log to logs/ before the script starts: create it once with `mkdir logs`
+# in the repository root before submitting.
 
 set -euo pipefail
 RAW_DIR="${RAW_DIR:-output/global_sa/raw}"
-mkdir -p logs
-uv run python experiments/global_sa/reduce.py --raw-dir "$RAW_DIR" --workers "${SLURM_NTASKS:-4}"
+source .venv/bin/activate
+python experiments/global_sa/reduce.py --raw-dir "$RAW_DIR" --workers "${SLURM_NTASKS:-4}"
 echo "Done: $(date)"

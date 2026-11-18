@@ -4,6 +4,7 @@ statistics and the plot style.
 Every loader reads one file of data/ and says which in its docstring.
 """
 import os
+import sys
 
 import matplotlib
 
@@ -19,6 +20,8 @@ from scipy import stats  # noqa: E402
 # ─── Paths
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(ROOT, "model"))
+from parameters import model_parameters  # noqa: E402
 DATA = os.path.join(ROOT, "data")
 PREPARATION = os.path.join(ROOT, "preparation")
 FIGURES = os.path.join(ROOT, "output", "figures")
@@ -26,10 +29,10 @@ TABLES = os.path.join(ROOT, "output", "tables")
 
 # ─── Model constants
 
-# Calibrated parametrisation: eta, m, varepsilon of the calibration (the parameter
-# combination inside both empirical bands); everything else at its baseline value.
-CALIBRATED = {"eta": 0.0382979672588408, "m": 5.246293367259204, "varepsilon": 0.0024974777754507}
-WARMUP, TOT_STEP = 100, 400
+# From model/parameters.csv. Calibrated parametrisation: eta, m, varepsilon of the calibration
+# (the parameter combination inside both empirical bands); everything else at its baseline value.
+FIXED, BASELINE, CALIBRATED = model_parameters("fixed"), model_parameters("baseline"), model_parameters("calibrated")
+WARMUP, TOT_STEP = int(FIXED["warmup"]), int(FIXED["tot_step"])
 YEARS = (TOT_STEP - WARMUP) / 12          # 25 post-warm-up years
 
 # GEV parameters of the flood scenarios S1..S4: (location mu, scale sigma, shape xi).
@@ -241,21 +244,25 @@ def contrast_to_percent(df, col):
 
 
 def r_by_scenario(ps, stat="M_net", kappa=10, beta2=0.5):
-    """Statistic (R_net or M_net) and R_gross per flooded scenario and delta, with the S0 run of the
-    same seed and the contrast (lambda averaged within seed, then mean and t interval over seeds).
-    Returns the flooded summary, the S0 summary and the per-seed table."""
+    """Statistic stat (the net reproduction number R_net or the multiplier M_net) and R_gross per
+    flooded scenario and delta, with the S0 run of the same seed and the contrast (lambda averaged
+    within seed, then mean and t interval over seeds). Columns are named after the statistic:
+    stat, stat_S0 and d<stat> (difference for R_net, % change for M_net), and the same for R_gross.
+    Returns the flooded summary, the S0 summary (columns stat and R_gross) and the per-seed table."""
     multiplier = stat == "M_net"
-    d = ps[(ps.kappa == kappa) & (ps.beta2 == beta2)].assign(R_net=lambda x: x[stat])
-    s0 = d[d.setting == 0][["delta", "seed", "R_net", "R_gross"]].rename(
-        columns={"R_net": "R_net_S0", "R_gross": "R_gross_S0"})
+    d = ps[(ps.kappa == kappa) & (ps.beta2 == beta2)]
+    s0 = d[d.setting == 0][["delta", "seed", stat, "R_gross"]].rename(
+        columns={stat: f"{stat}_S0", "R_gross": "R_gross_S0"})
     x = d[d.setting > 0].merge(s0, on=["delta", "seed"])
-    x["dR_net"], x["dR_gross"] = contrast(x.R_net, x.R_net_S0, multiplier), x.R_gross - x.R_gross_S0
-    cols = ["R_net", "R_gross", "R_net_S0", "R_gross_S0", "dR_net", "dR_gross"]
+    x[f"d{stat}"], x["dR_gross"] = contrast(x[stat], x[f"{stat}_S0"], multiplier), x.R_gross - x.R_gross_S0
+    cols = [stat, "R_gross", f"{stat}_S0", "R_gross_S0", f"d{stat}", "dR_gross"]
     w = x.groupby(["setting", "delta", "seed"])[cols].mean().reset_index()
     flooded = summarise(w, ["setting", "delta"], cols)
     if multiplier:
-        flooded = contrast_to_percent(flooded, "dR_net")
-    s0r = summarise(w[w.setting == 1].rename(columns={"R_net_S0": "Rn", "R_gross_S0": "Rg"}), ["delta"], ["Rn", "Rg"])
+        flooded = contrast_to_percent(flooded, f"d{stat}")
+    # every flooded scenario carries the same S0 runs; take them once, from S1
+    s0r = summarise(w.loc[w.setting == 1, ["delta", "seed", f"{stat}_S0", "R_gross_S0"]]
+                    .rename(columns={f"{stat}_S0": stat, "R_gross_S0": "R_gross"}), ["delta"], [stat, "R_gross"])
     return flooded, s0r, w
 
 
@@ -344,9 +351,7 @@ def delta_positions(flooded, s0r):
     """Categorical x positions of the delta > 0 cells, for the flooded and the S0 summaries."""
     deltas = sorted(flooded.delta[flooded.delta > 0].unique())
     pos = {d: i for i, d in enumerate(deltas)}
-    s0 = s0r.rename(columns={"Rn": "R_net", "Rn_lo": "R_net_lo", "Rn_hi": "R_net_hi",
-                             "Rg": "R_gross", "Rg_lo": "R_gross_lo", "Rg_hi": "R_gross_hi"})
-    s0 = s0[s0.delta > 0].assign(x=lambda d: d.delta.map(pos))
+    s0 = s0r[s0r.delta > 0].assign(x=lambda d: d.delta.map(pos))
     fl = flooded[flooded.delta > 0].assign(x=lambda d: d.delta.map(pos))
     return deltas, fl, s0
 
@@ -616,8 +621,8 @@ def kde_grid(rows, cols, shape, bw, weights=None):
 
 
 def rate_map(runs, fcl, shape, pop_share, bw):
-    """Local annual foreclosure rate (%), defined as the calibration's rate_tot
-    (SA_4/analysis/distress_index_4.py): per run, 100 * foreclosures / mean_active / years,
+    """Local annual foreclosure rate (%), defined as rate_tot in the reduced data
+    (experiments/global_sa/reduce.py): per run, 100 * foreclosures / mean_active / years,
     then the mean over seeds. Locally, foreclosures are the run's KDE and mean_active is
     the run's mean active population times the cell's share of the smoothed placement
     weight. The mean over runs is one KDE with each point weighted by
@@ -669,7 +674,7 @@ def map_fields(flood_setting=4, min_pop=0.05):
 
 ADMISSION_DRAWS = 2_000_000
 ADMISSION_SEED = 0
-ACCEPT_SCORE = 200          # admission threshold A
+ACCEPT_SCORE = FIXED["acpt_score"]   # admission threshold A
 LOAN_TERM = 120             # months, n_{i,0} of entrants
 
 
@@ -689,7 +694,7 @@ def scorecard(zeta, income, sen, ltv, install):
     return cap + inc + snr + ltv_s + inst
 
 
-def draw_applicants(n=ADMISSION_DRAWS, seed=ADMISSION_SEED, zeta_scale=0.015):
+def draw_applicants(n=ADMISSION_DRAWS, seed=ADMISSION_SEED, zeta_scale=FIXED["zeta_scale"]):
     """Applicants at entry with the distributions of the model (add_agents! in model/model.jl,
     SI Table 3), their score and admission. Property value v in thousand euro."""
     rng = np.random.default_rng(seed)

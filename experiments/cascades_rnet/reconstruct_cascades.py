@@ -15,9 +15,9 @@ Second grouping, without weights or random draws: connected components of the ca
 graph, in which every child is joined to all its candidates. Components are kept when their
 earliest member lies in the same window.
 
-Run:    uv run python experiments/cascades_rnet/reconstruct_cascades.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
-Writes: data/cascades_rnet/sizes_by_run.csv.gz  run_id, method (tree or comp), size, count
-        data/cascades_rnet/trees_by_run.csv.gz  per run: parameters, foreclosures, attributed
+Run:    python experiments/cascades_rnet/reconstruct_cascades.py --raw-dir <folder with runs_chunk*.csv, fcl_chunk*.csv>
+Writes: <out-dir>/sizes_by_run.csv.gz  run_id, method (tree or comp), size, count
+        <out-dir>/trees_by_run.csv.gz  per run: parameters, foreclosures, attributed
                                                 foreclosures, number of trees and components,
                                                 sums of size, size^2, size^3, mean and skewness
 """
@@ -33,7 +33,7 @@ from scipy import stats
 
 GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = os.path.join(ROOT, "data", "cascades_rnet")
+OUT_DIR = os.path.join(ROOT, "output", "cascades_rnet", "reduced")   # never data/: see REPRODUCE.md
 CELL = ["setting", "lambda", "kappa", "beta2", "vartheta", "delta"]
 TRUNC = 12        # roots in the last 12 months are dropped
 RNG_SEED = 1      # parent draws of run r use the seed RNG_SEED + r
@@ -136,9 +136,10 @@ def process_run(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-dir", required=True)
+    ap.add_argument("--out-dir", default=OUT_DIR, help="default: output/cascades_rnet/reduced")
     ap.add_argument("--workers", type=int, default=max(1, os.cpu_count() - 1))
     a = ap.parse_args()
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(a.out_dir, exist_ok=True)
 
     runs = pd.concat(pd.read_csv(p, float_precision="round_trip") for p in sorted(glob.glob(os.path.join(a.raw_dir, "runs_chunk*.csv"))))
     runs = runs[runs.success]
@@ -159,9 +160,9 @@ def main():
             print(f"{os.path.basename(path)}: {len(jobs)} runs", flush=True)
 
     sizes = pd.DataFrame([h for r in rows for h in r.pop("_hist")], columns=["run_id", "method", "size", "count"])
-    sizes.to_csv(os.path.join(OUT, "sizes_by_run.csv.gz"), index=False, compression=GZIP)
+    sizes.to_csv(os.path.join(a.out_dir, "sizes_by_run.csv.gz"), index=False, compression=GZIP)
     trees = pd.DataFrame(rows)
-    trees.to_csv(os.path.join(OUT, "trees_by_run.csv.gz"), index=False, compression=GZIP)
+    trees.to_csv(os.path.join(a.out_dir, "trees_by_run.csv.gz"), index=False, compression=GZIP)
     print(f"orphan children (no step t-1 foreclosure within 2 kappa): {int(trees.orphans.sum())} "
           f"of {int(trees.n_attr.sum())} attributed")
 

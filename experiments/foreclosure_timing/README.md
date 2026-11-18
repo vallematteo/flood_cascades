@@ -9,19 +9,23 @@ Used by: Fig. 5, SI Figs 11 and 12, and the numbers on foreclosure timing.
 | Step | Script | Output |
 |---|---|---|
 | 1. Simulation (1,050 runs) | `run.jl` | `output/foreclosure_timing/raw/{gap,beta3}_{runs,foreclosures}.csv` |
-| 2. Reduction to the variables the paper uses | `reduce_foreclosure_timing.py` | `data/foreclosure_timing/{gap,beta3}_runs.csv`, `{gap,beta3}_foreclosures.csv.gz` |
+| 2. Reduction to the variables the paper uses | `reduce_foreclosure_timing.py` | `output/foreclosure_timing/reduced/{gap,beta3}_runs.csv`, `{gap,beta3}_foreclosures.csv.gz` (published in `data/foreclosure_timing/`) |
 
 Designs: `gap` (beta1 - beta2 in {0.45, 0.5, 0.55, 0.6, 0.7}, 750 runs) and `beta3`
 (beta3 in {0.5, 2}, 300 runs); scenarios S0 to S4, lambda in {0.25, 0.5, 0.75}, 10 seeds.
+
+Every script writes to `output/foreclosure_timing/` (reductions to `output/foreclosure_timing/reduced/`) and never to
+`data/`, so the published files in `data/foreclosure_timing/` stay as the reference to compare a rerun with
+(see [REPRODUCE.md](../../REPRODUCE.md#experiments)).
 
 ## Run
 
 On a laptop, from the repository root:
 
     julia --project=. experiments/foreclosure_timing/run.jl --num-workers 10
-    uv run python experiments/foreclosure_timing/reduce_foreclosure_timing.py
+    python experiments/foreclosure_timing/reduce_foreclosure_timing.py
 
-A run takes about 8 s on one core; the full design takes about TODO minutes on 10 cores of an
+A run takes about 8 s on one core; the full design takes about 13 minutes on 10 cores of an
 Apple M3 Pro.
 
 ## Reproducibility

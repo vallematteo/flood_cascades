@@ -4,6 +4,7 @@ Code and data for the paper *Neighbourhood flood damage amplifies mortgage defau
 
 ## Contents
 
+- [Quick start](#quick-start)
 - [Overview](#overview)
 - [Repository contents](#repository-contents)
 - [System requirements](#system-requirements)
@@ -13,34 +14,42 @@ Code and data for the paper *Neighbourhood flood damage amplifies mortgage defau
 - [License](#license)
 - [Citation](#citation)
 
+## Quick start
+
+```bash
+git clone https://github.com/vallematteo/flood_cascades.git && cd flood_cascades
+julia +1.10.4 --project=. -e 'using Pkg; Pkg.instantiate()'   # Julia packages, about 2 minutes
+uv sync && source .venv/bin/activate                          # Python packages, about 10 seconds
+bash reproduce.sh                                             # every figure, table and number, about 7 minutes
+```
+
+To run the model itself, the [demo](REPRODUCE.md#demo) runs 20 simulations and checks them
+against `data/` in under a minute.
+
 ## Overview
 
-An agent-based model of mortgage holders in Limburg (the Netherlands) exposed to floods. Each
-household holds a mortgage, receives income, and may default through a financial channel
-(it cannot pay) or a strategic channel (it chooses not to pay after its home or its
-neighbourhood loses value). Foreclosures can spill over to neighbours. The model is written in
-Julia with Agents.jl; the analysis that turns simulation output into the paper's figures,
-tables and numbers is written in Python.
+This repository contains an agent-based model of mortgage default calibrated to the Limburg area in the Netherlands. The model is written in Julia with Agents.jl; the analysis that turns simulation
+output into the paper's figures, tables and numbers is written in Python.
 
 The package can be used at three levels:
 
 | Level | What it reproduces | Where it runs | Time |
 |---|---|---|---|
-| A. Paper from data | every figure, table and number in the paper and SI, from the reduced data in `data/` | a laptop | about 12 minutes |
-| B. Data from raw output | the reduced data in `data/`, from raw simulation output | wherever the raw output is | 1 to 30 minutes per experiment on a cluster node (see [REPRODUCE.md](REPRODUCE.md)) |
+| A. Paper from data | every figure, table and number in the paper and SI, from the summarised simulation output in `data/` | a laptop | about 7 minutes |
+| B. Data from raw output | the summarised output in `data/`, from the raw simulation output | wherever the raw output is | 1 to 30 minutes per experiment on a cluster node (see [REPRODUCE.md](REPRODUCE.md)) |
 | C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (calibration, sensitivity analysis, cascades) | see [REPRODUCE.md](REPRODUCE.md) |
 
 ## Repository contents
 
 | Path | Content |
 |---|---|
-| [`model/`](model) | the agent-based model (`model.jl`, `agents.jl`, `utils.jl`) |
+| [`model/`](model) | the agent-based model (`model.jl`, `agents.jl`, `utils.jl`) and `parameters.csv`, the fixed, baseline and calibrated parameter values that every runner and script reads |
 | [`preparation/`](preparation) | model inputs and their preparation: flood maps, flood-severity series, initialization (CBS data and baseline parameters) and the calibration targets (NHG, BKR) ([preparation/README.md](preparation/README.md)) |
-| [`experiments/`](experiments) | one folder per simulation experiment (calibration, global sensitivity analysis, cascades, foreclosure timing, scale of liquid funds), each with its parameter design, runner, SLURM script where it ran on a cluster, reduction script and README |
-| [`data/`](data) | reduced simulation output, the only data the figure, table and number scripts read ([data/README.md](data/README.md)) |
+| [`experiments/`](experiments) | one folder per simulation experiment (calibration, global sensitivity analysis, cascades, foreclosure timing, scale of liquid funds), each with its parameter design, runner, SLURM script where it ran on a cluster, a script that summarises the raw output into `data/`, and README |
+| [`data/`](data) | summarised simulation output (raw runs aggregated to the quantities the paper uses), the only data the figure, table and number scripts read ([data/README.md](data/README.md)) |
 | `figure_*.py` | one script per figure, named by its number in the paper (`figure_2.py`) or the SI (`figure_SI1.py`); Fig. 1 is a schematic (drawn in TikZ, no data) and has no script |
 | `tables.py` | writes Table 1 and SI Tables 5, 6, 8, 9 and 10 as LaTeX tabulars |
-| `paper_numbers.py` | recomputes every number quoted in the paper and the SI and checks it against the printed value |
+| `paper_numbers.py` | recomputes every number quoted in the paper and the SI and lists them in `output/numbers.csv` |
 | `utils.py` | code shared by several scripts (paths, constants, data loaders, statistics, plot style) |
 | `reproduce.sh` | runs every figure script, `tables.py` and `paper_numbers.py` (level A) |
 | [`REPRODUCE.md`](REPRODUCE.md) | for each figure, table and number block: the script, the data, the run time, and how to regenerate the data |
@@ -86,7 +95,11 @@ julia --project=. -e 'using Pkg; Pkg.instantiate()'
 
 # Python environment (uv installs Python 3.11 and the pinned packages into .venv)
 uv sync
+source .venv/bin/activate
 ```
+
+Every `python` command in this README, in REPRODUCE.md and in the scripts assumes this
+environment is active (`source .venv/bin/activate` in each new shell).
 
 Install time, measured on an Apple M3 Pro with a fast connection and empty caches: about 10
 seconds for the Python environment and about 2 minutes for the Julia environment (download
@@ -94,7 +107,7 @@ and precompilation of the packages).
 
 ## Demo
 
-The 20 simulations of the calibrated parametrisation without floods, and their reduction,
+The 20 simulations of the calibrated parametrisation without floods, summarised the same way as `data/`,
 reproduce the annual foreclosure rate (0.42%) and the share of households in financial distress
 (0.51%) of the main text in about 40 seconds on 4 cores. Commands, expected output and run time:
 [REPRODUCE.md](REPRODUCE.md#demo).
@@ -103,11 +116,8 @@ reproduce the annual foreclosure rate (0.42%) and the share of households in fin
 
 
 ```bash
-bash reproduce.sh        # every figure, table and number from data/ (level A), about 12 minutes
+bash reproduce.sh        # every figure, table and number from data/ (level A), about 7 minutes on a laptop
 ```
-
-Run every Python script through uv, for example `uv run python figure_2.py`, so it uses the
-pinned environment.
 
 [REPRODUCE.md](REPRODUCE.md) lists each figure, table and number block with its script, data,
 run time, and how to regenerate its data from the simulations.
@@ -117,10 +127,4 @@ run time, and how to regenerate its data from the simulations.
 Code: MIT License (see [LICENSE](LICENSE)). Data in `data/`: Creative Commons Attribution 4.0 (CC BY 4.0). Third-party data
 in `preparation/` keeps the licence of its source (see [preparation/README.md](preparation/README.md)).
 
-## Citation
 
-If you use this code or data, please cite the paper:
-
-> TODO: authors, *Neighbourhood flood damage amplifies mortgage default cascades*, journal, year, DOI.
-
-Code and data archive: TODO: archive DOI.

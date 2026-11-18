@@ -29,6 +29,7 @@ using CSV, DataFrames, Parquet2
 
 include("utils.jl")
 include("agents.jl")
+include("parameters.jl")
 
 
 # ─── Burr Type III sampling via the inverse CDF
@@ -47,6 +48,19 @@ end
 
 function rand_burr_vec(rng::AbstractRNG, c::Float64, d::Float64, loc::Float64, scale::Float64, n::Int)
     return [rand_burr(rng, c, d, loc, scale) for _ in 1:n]
+end
+
+"""
+    skip_draws!(rng, n)
+
+Advance rng by n uniform draws, the draws of an attribute the model no longer has (floor
+area, one per household). Kept so the random-number stream, and therefore every run, is the
+same as in the simulations of the paper.
+"""
+function skip_draws!(rng::AbstractRNG, n::Int)
+    for _ in 1:n
+        rand(rng, Uniform(0.0, 1.0))
+    end
 end
 
 
@@ -337,7 +351,7 @@ function populate_agents!(model)
     zeta_arr   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, N) .* props.zeta_scale
     s_i_arr    = calc_share_expenses(income_arr, props.m_param, props.varepsilon, props.s_ub)
     living_arr = s_i_arr .* income_arr
-    sp_arr     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, N)
+    skip_draws!(rng, N)
     n_arr      = floor.(rand(rng, Uniform(1.0, 121.0), N))
     # house values are fitted in thousands of euros and converted to euros
     v_arr      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, N) .* 1000.0
@@ -350,7 +364,7 @@ function populate_agents!(model)
                          fgrote[k], fmiddel[k], fklein[k], feklein[k],
                          zeta_arr[k], income_arr[k], sen_arr[k], living_arr[k],
                          w_arr[k], ltv_arr[k], p_arr[k],
-                         v_arr[k], sp_arr[k], n_arr[k], l_arr[k])
+                         v_arr[k], n_arr[k], l_arr[k])
         props.tot_num_agents_active += 1
         props.tot_num_agents_his += 1
     end
@@ -556,7 +570,7 @@ function add_agents!(model)
     sen_v    = rand(rng, Beta(0.88, 2.79), num_created) .* 106.34 .+ 1.0
     zeta_v   = rand_burr_vec(rng, 9.42, 0.14, -0.11, 73.40, num_created) .* props.zeta_scale
     ltv_v    = abs.(rand(rng, Normal(0.57, 0.1), num_created))
-    sp_v     = rand_burr_vec(rng, 2.20, 3.00, -0.63, 146.68, num_created)
+    skip_draws!(rng, num_created)
     v_v      = rand_burr_vec(rng, 3.38, 0.92, -1.34, 195.25, num_created) .* 1000.0  # thousands of euros to euros
     n_val    = 120.0
     p_v      = ltv_v .* v_v ./ n_val
@@ -575,7 +589,7 @@ function add_agents!(model)
                              fgrote_v[i], fmiddel_v[i], fklein_v[i], feklein_v[i],
                              zeta_v[i], income_v[i], sen_v[i], living_v[i],
                              w_v[i], ltv_v[i], p_v[i],
-                             v_v[i], sp_v[i], n_val, l_v[i])
+                             v_v[i], n_val, l_v[i])
             props.tot_num_agents_active += 1
             props.tot_num_agents_his += 1
             props.num_joined += 1

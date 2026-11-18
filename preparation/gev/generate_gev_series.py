@@ -10,7 +10,7 @@ entropy). The generator is first advanced by 42,000 uniform draws, then the 2,50
 S1, S2, S3 and S4 are drawn in that order. The result is gev_config_static_2500.csv, the series
 read by every simulation of the paper; the script checks that the two agree.
 
-Run:    uv run python preparation/gev/generate_gev_series.py
+Run:    python preparation/gev/generate_gev_series.py
 Writes: output/gev/gev_config_static_2500.csv
 """
 import os

@@ -11,9 +11,9 @@
               beta3 = 1                                                      750 runs
       beta3   beta3 in {0.5, 2.0}, beta2 = 0.5                               300 runs
 
-    Calibrated parametrisation: eta, m, varepsilon from the calibration (the parameter
-    combination inside both empirical bands); exp_lb = 1087 and the other parameters at
-    their baseline values.
+    Calibrated parametrisation (model/parameters.csv): eta, m, varepsilon from the calibration
+    (the parameter combination inside both empirical bands), the other parameters at their
+    baseline values.
 
     Output, in --out-dir, per design:
       <design>_runs.csv           one row per run: parameters, post-warm-up triggers and
@@ -23,10 +23,10 @@
                                   wtp, distress months (n_dis, by channel; post-warm-up,
                                   including the terminal one), mortgage age at the first
                                   distress month (t_dis_first) and dis_span = t - t_dis_first + 1
-    reduce_foreclosure_timing.py turns these into data/foreclosure_timing/.
+    reduce_foreclosure_timing.py reduces these to the files of data/foreclosure_timing/.
 
     Usage (from the repository root):
-      both designs (about 1.5 hours on 10 cores):
+      both designs (about 13 minutes on 10 cores of a laptop):
         julia --project=. experiments/foreclosure_timing/run.jl --num-workers 10
       a few runs, for checks:
         julia --project=. experiments/foreclosure_timing/run.jl --design gap --run-ids 0,300,749 --out-dir output/timing_check
@@ -69,13 +69,14 @@ using Printf
 
 # ─── Parameters
 
-const TOT_STEP = 400
-const WARMUP = 100
+const P = model_parameters("fixed", "baseline", "calibrated")
+const TOT_STEP = Int(P[:tot_step])
+const WARMUP = Int(P[:warmup])
 
 const PARAMS = (
-    kappa = 10, acpt_score = 200.0, add_agents = true, rho = 4.0,
-    alpha = 150.0, s_ub = 1.0, N_nj = 35, vartheta = 0.05, exp_lb = 1087.0,
-    eta = 0.0382979672588408, m = 5.246293367259204, varepsilon = 0.0024974777754507,
+    kappa = Int(P[:kappa]), acpt_score = P[:acpt_score], add_agents = P[:add_agents] == 1,
+    rho = P[:rho], alpha = P[:alpha], s_ub = P[:s_ub], N_nj = Int(P[:N_nj]), vartheta = P[:vartheta],
+    exp_lb = P[:exp_lb], eta = P[:eta], m = P[:m], varepsilon = P[:varepsilon],
 )
 
 const SEEDS = [788269981, 1559343818, 850678639, 36298517, 2042083684,

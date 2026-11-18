@@ -16,9 +16,9 @@
       13 cells x (5 + 2) x 3 x 12 x 20 = 65,520 runs.
     Floods do not occur at S0, so lambda and vartheta have no effect there.
 
-    Calibrated parametrisation: eta, m, varepsilon from the calibration (the parameter
-    combination inside both empirical bands); beta1 = 1, beta3 = 1, exp_lb = 1087 and the other
-    parameters at their baseline values.
+    Calibrated parametrisation (model/parameters.csv): eta, m, varepsilon from the calibration
+    (the parameter combination inside both empirical bands), the other parameters at their
+    baseline values.
 
     Seeds: np.random.default_rng(56).integers(0, 2**31, size=20).
 
@@ -79,13 +79,14 @@ using Printf, Dates
 
 # ─── Parameters
 
-const TOT_STEP = 400
-const WARMUP = 100
+const P = model_parameters("fixed", "baseline", "calibrated")
+const TOT_STEP = Int(P[:tot_step])
+const WARMUP = Int(P[:warmup])
 
 const PARAMS = (
-    beta1 = 1.0, beta3 = 1.0, acpt_score = 200.0, add_agents = true, rho = 4.0,
-    alpha = 150.0, s_ub = 1.0, N_nj = 35, exp_lb = 1087.0,
-    eta = 0.0382979672588408, m = 5.246293367259204, varepsilon = 0.0024974777754507,
+    beta1 = P[:beta1], beta3 = P[:beta3], acpt_score = P[:acpt_score], add_agents = P[:add_agents] == 1,
+    rho = P[:rho], alpha = P[:alpha], s_ub = P[:s_ub], N_nj = Int(P[:N_nj]), exp_lb = P[:exp_lb],
+    eta = P[:eta], m = P[:m], varepsilon = P[:varepsilon],
 )
 
 const SEEDS = [788269981, 1559343818, 850678639, 36298517, 2042083684,
@@ -102,7 +103,6 @@ const BETA2_MAIN = 0.5
 const GAP_BETA2 = [0.4, 0.3]                     # gap block, at kappa = 10
 const GAP_KAPPA = 10.0
 const VARTHETAS = [0.03, 0.05, 0.13]
-const AGE_EDGES = collect(0:5:125)               # bins for the median age
 
 # ─── Design
 

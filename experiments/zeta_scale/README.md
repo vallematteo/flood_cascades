@@ -15,15 +15,19 @@ admission rate and mean population at scales 0.01, 0.015 and 0.02).
 |---|---|---|
 | 1. Design | `design.py` | `output/zeta_scale/run_list.csv` |
 | 2. Simulation | `experiments/global_sa/run.jl` | Parquet output per run in `output/zeta_scale/raw/` |
-| 3. Reduction | `reduce.py` | `data/zeta_scale/runs.csv.gz` (per run: admission rate, mean population, foreclosure rate, distress share, median age at financial foreclosure) |
+| 3. Reduction | `reduce.py` | `output/zeta_scale/reduced/runs.csv.gz`, published in `data/zeta_scale/` (per run: admission rate, mean population, foreclosure rate, distress share, median age at financial foreclosure) |
+
+Every script writes to `output/zeta_scale/` (reductions to `output/zeta_scale/reduced/`) and never to
+`data/`, so the published files in `data/zeta_scale/` stay as the reference to compare a rerun with
+(see [REPRODUCE.md](../../REPRODUCE.md#experiments)).
 
 ## Run
 
 On a laptop (about 7 minutes on 8 cores):
 
-    uv run python experiments/zeta_scale/design.py
+    python experiments/zeta_scale/design.py
     julia --project=. experiments/global_sa/run.jl --run-list output/zeta_scale/run_list.csv --raw-dir output/zeta_scale/raw --num-workers 8
-    uv run python experiments/zeta_scale/reduce.py
+    python experiments/zeta_scale/reduce.py
 
 ## Reproducibility
 

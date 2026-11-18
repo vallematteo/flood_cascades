@@ -5,7 +5,7 @@ flood scenarios S1-S4 pooled. Dotted lines: medians. Calibrated parametrisation,
 beta2 = 0.5, beta3 = 1, delta = 0, lambda in {0.25, 0.5, 0.75}, 10 seeds; foreclosures after
 the warm-up.
 
-Run:    uv run python figure_5.py
+Run:    python figure_5.py
 Writes: output/figures/figure_5.png
 """
 import matplotlib.pyplot as plt

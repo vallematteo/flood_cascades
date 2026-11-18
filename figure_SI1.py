@@ -3,7 +3,7 @@
 GEV densities with the parameters of preparation/gev/gev_scenario_parameters.py, with an
 inset on the upper tail. No simulation data.
 
-Run:    uv run python figure_SI1.py
+Run:    python figure_SI1.py
 Writes: output/figures/figure_S1.png
 """
 import matplotlib.pyplot as plt

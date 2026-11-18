@@ -12,28 +12,31 @@ parameters (beta1 = 1, beta2 = 0.5, beta3 = 1, kappa = 10, vartheta = 0.05, exp_
 with delta = 0, for the 20 seeds of the cascade experiment: its foreclosure rate and share of
 households in financial distress are the values quoted in the main text.
 
-Run:    uv run python experiments/abc_calibration/design.py
-Writes: data/abc_calibration/design.csv                  sample_id, raw_index (position in the
+Run:    python experiments/abc_calibration/design.py
+Writes: output/abc_calibration/design.csv                 sample_id, raw_index (position in the
                                                          Sobol' sequence) and the nine parameters
         output/abc_calibration/run_list.csv              one row per run, read by experiments/global_sa/run.jl
         output/abc_calibration/run_list_calibrated.csv   the 20 runs of the calibrated parametrisation
 """
 import os
+import sys
 
 import numpy as np
 import pandas as pd
 from scipy.stats import qmc
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "model"))
+from parameters import model_parameters  # noqa: E402
 BOUNDS = os.path.join(ROOT, "data", "global_sa", "design", "problem_definition.csv")
-DESIGN = os.path.join(ROOT, "data", "abc_calibration", "design.csv")
+DESIGN = os.path.join(ROOT, "output", "abc_calibration", "design.csv")   # data/abc_calibration/design.csv is the published copy
 RUN_LIST = os.path.join(ROOT, "output", "abc_calibration", "run_list.csv")
 RUN_LIST_CALIBRATED = os.path.join(ROOT, "output", "abc_calibration", "run_list_calibrated.csv")
-CALIBRATED = {"kappa": 10.0, "beta1": 1.0, "beta2": 0.5, "beta3": 1.0, "eta": 0.0382979672588408,
-              "vartheta": 0.05, "m": 5.246293367259204, "varepsilon": 0.0024974777754507, "exp_lb": 1087.0}
 CASCADE_SEEDS = np.random.default_rng(56).integers(0, 2**31, size=20).tolist()   # seeds of the cascade experiment
 
 PARAMS = ["kappa", "beta1", "beta2", "beta3", "eta", "vartheta", "m", "varepsilon", "exp_lb"]
+_P = model_parameters("baseline", "calibrated")       # model/parameters.csv
+CALIBRATED = {p: _P[p] for p in PARAMS}               # the calibrated parametrisation
 MIN_GAP = 0.5            # beta1 - beta2 >= 1/2
 SOBOL_SEED = 20261104
 M = 13                   # 2^13 points of the Sobol' sequence

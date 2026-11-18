@@ -8,22 +8,26 @@ calibrated parametrisation and the baseline values of the other parameters (beta
 beta2 = 0.5, beta3 = 1, kappa = 10, vartheta = 0.05, exp_lb = 1087). lambda has no effect
 without floods.
 
-Run:    uv run python experiments/zeta_scale/design.py
+Run:    python experiments/zeta_scale/design.py
 Writes: output/zeta_scale/run_list.csv   one row per run, read by experiments/global_sa/run.jl
 """
 import os
+import sys
 
 import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "model"))
+from parameters import model_parameters  # noqa: E402
 RUN_LIST = os.path.join(ROOT, "output", "zeta_scale", "run_list.csv")
 
 ZETA_SCALES = np.round(np.arange(0.005, 0.030 + 1e-12, 0.00025), 6)   # 101 values
 SEEDS = np.random.default_rng(56).integers(0, 2**31, size=10)[:5].tolist()   # first five seeds of the sensitivity analysis
-FIXED = {"setting": 0, "kappa": 10.0, "beta1": 1.0, "beta2": 0.5, "beta3": 1.0,
-         "eta": 0.0382979672588408, "vartheta": 0.05, "m": 5.246293367259204,
-         "varepsilon": 0.0024974777754507, "exp_lb": 1087.0, "lambda": 0.5, "delta": 0.0}
+_P = model_parameters("baseline", "calibrated")       # model/parameters.csv
+FIXED = {"setting": 0,
+         **{p: _P[p] for p in ("kappa", "beta1", "beta2", "beta3", "eta", "vartheta", "m", "varepsilon", "exp_lb")},
+         "lambda": 0.5, "delta": _P["delta"]}
 
 
 def main():

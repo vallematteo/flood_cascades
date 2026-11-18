@@ -13,20 +13,23 @@ foreclosure rate and the distress share have the same definitions:
                       100 * n_hhyr_fin / (mean_active * 25)
     median_age_fin    median loan age (months) at financial foreclosure
 
-Run:    uv run python experiments/zeta_scale/reduce.py
-Writes: data/zeta_scale/runs.csv.gz
+Run:    python experiments/zeta_scale/reduce.py
+Writes: <out-dir>/runs.csv.gz (default output/zeta_scale/reduced/)
 """
 import argparse
 import os
+import sys
 
 import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "model"))
+from parameters import model_parameters  # noqa: E402
 GZIP = {"method": "gzip", "mtime": 0}   # fixed timestamp: identical content gives identical files
-WARMUP = 100
-TOT_STEP = 400
-APPLICANTS = 140          # rho * N_nj applicants per month (experiments/global_sa/run.jl)
+_P = model_parameters("fixed")                      # model/parameters.csv
+WARMUP, TOT_STEP = int(_P["warmup"]), int(_P["tot_step"])
+APPLICANTS = int(_P["rho"] * _P["N_nj"])   # applicants per month (140)
 MAX_AGENTS = 6000         # population cap of the model
 
 
@@ -62,15 +65,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-list", default=os.path.join(ROOT, "output", "zeta_scale", "run_list.csv"))
     ap.add_argument("--raw-dir", default=os.path.join(ROOT, "output", "zeta_scale", "raw"))
-    ap.add_argument("--out", default=os.path.join(ROOT, "data", "zeta_scale", "runs.csv.gz"))
+    ap.add_argument("--out-dir", default=os.path.join(ROOT, "output", "zeta_scale", "reduced"),
+                    help="default: output/zeta_scale/reduced (never data/: see REPRODUCE.md)")
     a = ap.parse_args()
 
     run_list = pd.read_csv(a.run_list, float_precision="round_trip")
     reduced = pd.DataFrame([reduce_run(a.raw_dir, int(r)) for r in run_list.run_id])
     runs = run_list[["run_id", "zeta_scale", "seed_index", "seed"]].merge(reduced, on="run_id")
-    os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    runs.to_csv(a.out, index=False, compression=GZIP)
-    print(f"{len(runs)} runs -> {a.out}")
+    os.makedirs(a.out_dir, exist_ok=True)
+    out = os.path.join(a.out_dir, "runs.csv.gz")
+    runs.to_csv(out, index=False, compression=GZIP)
+    print(f"{len(runs)} runs -> {out}")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@
     for the sensitivity-analysis vectors with delta <= 0.15; lower panel: mean active mortgages.
     Data: sensitivity analysis.
 
-Run:    uv run python figure_3.py
+Run:    python figure_3.py
 Writes: output/figures/figure_3a.png, output/figures/figure_3b.png
 """
 import matplotlib.pyplot as plt

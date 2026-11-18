@@ -5,6 +5,10 @@ output of one experiment; the raw output of the simulations is not included, and
 experiment folder in `experiments/` contains the scripts that regenerate it and reduce it
 to these files.
 
+No script writes to this folder. The scripts in the "Produced by" columns write to
+`output/<experiment>/reduced/` (the designs to `output/<experiment>/`), under the same file
+names, so a rerun can be compared with these published files.
+
 `.csv.gz` files are gzip-compressed CSV; pandas reads them directly (`pd.read_csv`).
 
 ## `abc_calibration/`
