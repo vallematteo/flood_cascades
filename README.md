@@ -30,13 +30,37 @@ against `data/` in under a minute.
 This repository contains an agent-based model of mortgage default calibrated to the Limburg area in the Netherlands. The model is written in Julia with Agents.jl; the analysis that turns simulation
 output into the paper's figures, tables and numbers is written in Python.
 
-The package can be used at three levels:
+### Choose what to reproduce
 
-| Level | What it reproduces | Where it runs | Time |
+The three levels are entry points into the same workflow, depending on how much you want
+to rerun. They are not steps to follow in alphabetical order. The full workflow is:
+
+```text
+C. Run simulations → raw simulation output
+                              ↓
+B. Summarise raw output → reduced data (the quantities stored in data/)
+                              ↓
+A. Generate paper results → figures, result tables and quoted numbers
+```
+
+**Start with A to reproduce the paper's results.** The repository already includes the
+reduced data, so you can run A without running B or C. Raw simulation output is not included;
+to rebuild the reduced data, run C then B for the relevant experiment.
+
+| Entry point and goal | Required inputs | What you generate | How to run |
 |---|---|---|---|
-| A. Paper from data | every figure, table and number in the paper and SI, from the summarised simulation output in `data/` | a laptop | about 7 minutes |
-| B. Data from raw output | the summarised output in `data/`, from the raw simulation output | wherever the raw output is | 1 to 30 minutes per experiment on a cluster node (see [REPRODUCE.md](REPRODUCE.md)) |
-| C. Simulations | the raw output, from the model | laptop (foreclosure timing, demo runs); SLURM cluster (calibration, sensitivity analysis, cascades) | see [REPRODUCE.md](REPRODUCE.md) |
+| **A. Regenerate paper results** | Published reduced data in `data/`, plus the supplied model inputs used by the analysis scripts | Data-based figures, result tables as LaTeX tabulars, and `numbers.csv` in `output/`, covering the main text and Supplementary Information (SI) | `bash reproduce/reproduce.sh`; about 7 minutes on a laptop |
+| **B. Rebuild the reduced data** | Raw simulation output from C and the experiment's run list/design | Summaries such as per-run foreclosure rates, pooled statistics and cascade sizes, saved in `output/<experiment>/reduced/` for comparison with `data/<experiment>/` | Follow the reduction commands in the relevant [`experiments/`](experiments) README; about 1 to 30 minutes per experiment on a cluster node |
+| **C. Rerun the model experiments** | Model code, prepared inputs, parameter designs and random seeds | Raw simulation records for each run, which B then summarises | Follow the design and simulation commands in the relevant [`experiments/`](experiments) README; laptop for the demo, foreclosure timing and liquid-funds scale experiments; SLURM cluster used for the full calibration, sensitivity analysis and cascades experiments |
+
+Here, **raw output** means the simulation records before analysis; **reduced data** means
+the selected and aggregated quantities used by the paper's analysis scripts. Reruns write
+to `output/`, leaving the published reference files in `data/` unchanged.
+
+A generates the scripted results, not the manuscript PDF, the model schematic (Fig. 1),
+or the descriptive SI tables. See [REPRODUCE.md](REPRODUCE.md) for the exact coverage,
+known numerical/rendering differences and computing costs for B and C. To try C and B on
+a small example first, use the [20-simulation demo](REPRODUCE.md#demo).
 
 ## Repository contents
 
@@ -58,14 +82,40 @@ The package can be used at three levels:
 
 ### Hardware
 
-Level A and the demo need only a standard computer. The timings in this README and in
-REPRODUCE.md were measured on an Apple M3 Pro (11 cores, 18 GB RAM).
+**No cluster is needed for level A:** all scripted paper results can be generated from
+the supplied data on a laptop. For level C, the table below distinguishes the experiments
+run locally from the larger ensembles run on a cluster for the paper.
 
-The calibration, the sensitivity analysis and the cascade experiment ran on the Snellius
-national supercomputer (SURF, the Netherlands), one node at a time: 2 AMD EPYC 9654 processors,
-192 cores and 1.4 TiB of memory per node. One simulation needs about 1.2 GB of memory and 8 to 9
-s on one core, so any machine with at least 1.5 GB per core can run them; see
-[REPRODUCE.md](REPRODUCE.md#computing-resources).
+| Task | Number of simulations | Hardware used | Measured elapsed time |
+|---|---|---|---|
+| A: generate paper results | none | laptop | about 7 min |
+| Demo: simulate and reduce the calibrated no-flood case | 20 | laptop, 4 workers | about 40 s |
+| C: foreclosure timing | 1,050 | laptop, 10 workers | 13–15 min |
+| C: scale of initial liquid funds | 505 | laptop, 8 workers | 7 min |
+| C + B: calibration, including reduction | 10,010 | cluster, one node with 192 workers | 11 min |
+| C: global sensitivity analysis | 166,400 | cluster, 5 array tasks, each using one node with 192 workers | 28–31 min per task |
+| C: foreclosure cascades | 65,520 | cluster, one node with 192 workers | 75 min |
+
+Laptop timings were measured on an Apple M3 Pro (11 cores, 18 GB RAM). Cluster timings
+are execution times on Snellius (SURF, the Netherlands), excluding queue time; the five
+sensitivity-analysis tasks may run concurrently or separately depending on availability.
+Each node has 2 AMD EPYC 9654 processors, 192 cores and 1.4 TiB of memory; the simulation
+jobs requested 336 GB per node.
+
+**The cluster is used to run many independent simulations in parallel.** The Julia runners
+can also run locally with fewer workers; the experiment READMEs provide local commands
+and SLURM submission commands where applicable. One simulation takes about 8–9 s on one
+core and needs up to about 1.2 GB of memory. Budget at least 1.5 GB per worker plus a few
+GB for the main process. A laptop can therefore run subsets of any experiment, while full
+ensembles take longer with fewer workers.
+
+For level B, reduce the output on a machine with access to the raw files. The full
+sensitivity-analysis reduction took 28 min on 192 cluster cores; cascade reduction and
+tree reconstruction took 1 and 2 min on 24 and 72 cores respectively. Local reduction
+commands are also provided. Full reruns require storage as well as compute: estimated raw
+output is about 0.8 TB for sensitivity analysis, 0.1 TB for calibration and 1.4 GB for
+cascades. See [REPRODUCE.md](REPRODUCE.md#computing-resources) for detailed resource costs
+and the [experiment READMEs](experiments) for commands.
 
 ### Software
 
