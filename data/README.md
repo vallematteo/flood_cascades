@@ -17,18 +17,18 @@ scenarios `set0` to `set4`.
 
 ## `abc_calibration/`
 
-Calibration at the no-flood scenario (rejection ABC). Run on a SLURM cluster, 2026-11-04.
+Calibration at the no-flood scenario (rejection ABC). Run on a SLURM cluster.
 
 | File | Content | Produced by |
 |---|---|---|
 | `design.csv` | the 1,001 parameter combinations (one row per `sample_id`): the points of a scrambled Sobol' sequence of 2^13 points (`raw_index`) on the sensitivity-analysis ranges with beta1 - beta2 >= 1/2 | `experiments/abc_calibration/design.py` |
 | `runs_set0.csv.gz` | one row per run (combination x 10 seeds): parameters, trigger and foreclosure counts by channel, mean active mortgages, `rate_tot` (annual foreclosures per 100 active mortgages) and `arrears_fin` (annual share of households in financial distress, %) | `experiments/global_sa/reduce.py --runs-only` |
-| `calibrated/runs_set0.csv.gz` | the same per-run table for the calibrated parametrisation at the baseline values of the other parameters (beta1 = 1, beta2 = 0.5, beta3 = 1, kappa = 10), S0, delta = 0, 20 seeds of the cascade experiment (run on a laptop, 2026-11-17): the foreclosure rate (0.42%) and the share of households in financial distress (0.51%) of the main text | `experiments/global_sa/reduce.py --runs-only` on `output/abc_calibration/run_list_calibrated.csv` |
+| `calibrated/runs_set0.csv.gz` | the same per-run table for the calibrated parametrisation at the baseline values of the other parameters (beta1 = 1, beta2 = 0.5, beta3 = 1, kappa = 10), S0, delta = 0, 20 seeds of the cascade experiment (run on a laptop): the foreclosure rate (0.42%) and the share of households in financial distress (0.51%) of the main text | `experiments/global_sa/reduce.py --runs-only` on `output/abc_calibration/run_list_calibrated.csv` |
 
 ## `global_sa/`
 
 Global sensitivity analysis: Saltelli design of 3,328 parameter vectors x 5 flood scenarios
-x 10 seeds (166,400 runs). Run on a SLURM cluster, 2026-10-28 to 2026-10-29.
+x 10 seeds (166,400 runs). Run on a SLURM cluster.
 
 | File | Content | Produced by |
 |---|---|---|
@@ -42,7 +42,7 @@ x 10 seeds (166,400 runs). Run on a SLURM cluster, 2026-10-28 to 2026-10-29.
 
 Foreclosure cascades and the net reproduction number: calibrated parametrisation, flood
 scenarios S0 to S4, spillover intensity delta from 0 to 0.25, 20 seeds (65,520 runs). Run on a
-SLURM cluster, 2026-11-10.
+SLURM cluster.
 
 | File | Content | Produced by |
 |---|---|---|
@@ -54,8 +54,8 @@ SLURM cluster, 2026-11-10.
 
 ## `foreclosure_timing/`
 
-Age and distress history at foreclosure, calibrated parametrisation. Run on a laptop,
-2026-11-10. Two designs: `gap` (beta1 - beta2 from 0.45 to 0.7, 750 runs) and `beta3`
+Age and distress history at foreclosure, calibrated parametrisation. Run on a laptop.
+Two designs: `gap` (beta1 - beta2 from 0.45 to 0.7, 750 runs) and `beta3`
 (beta3 from 0.5 to 2, 300 runs).
 
 | File | Content |
@@ -69,7 +69,7 @@ Produced by `experiments/foreclosure_timing/reduce_foreclosure_timing.py` from t
 
 Test of the scale of initial liquid funds (`zeta_scale`, 0.015 in every other simulation): 101
 values from 0.005 to 0.03 x 5 seeds (505 runs), S0, delta = 0, calibrated parametrisation.
-Run on a laptop, 2026-11-17.
+Run on a laptop.
 
 | File | Content | Produced by |
 |---|---|---|

@@ -31,8 +31,8 @@ On a laptop (about 7 minutes on 8 cores):
 
 ## Reproducibility
 
-Checked on 2026-11-17: the 505 runs, rerun with the model of this repository, reproduce the
-original runs of 2026-11-16 exactly (identical foreclosure and distress counts, admission
+Checked: the 505 runs, rerun with the model of this repository, reproduce the
+original runs exactly (identical foreclosure and distress counts, admission
 rates, populations and median ages in every run).
 
 The median loan ages quoted in the SI (51, 61 and 69 months at scales 0.01, 0.015 and 0.02) are

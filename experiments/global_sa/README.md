@@ -32,7 +32,7 @@ shipped data (50 runs per vector, about a minute per vector on 10 cores):
 
 ## Reproducibility
 
-Checked on 2026-11-17:
+Checked:
 - `design.py` regenerates the files of `data/global_sa/design/` byte for byte, and its run list matches
   the 166,400 runs of the cluster job (run ids, scenarios, seeds and parameters).
 - The 100 runs of vectors 0 and 1000, rerun on a laptop (Apple M3 Pro, Julia 1.10.4) and

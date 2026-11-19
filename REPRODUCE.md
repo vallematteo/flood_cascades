@@ -103,13 +103,12 @@ regenerate it, and the reduced data it produces is included in `data/`.
 ## Computing resources
 
 The three cluster experiments ran on the Snellius national supercomputer (SURF, the
-Netherlands), partition `fat_genoa` (48 nodes, `fcn[73-120]`): nodes with 2 AMD EPYC 9654
-(Genoa) processors, 192 cores and 1,474,560 MB (1.41 TiB) of schedulable memory, with a default
-of 7,680 MB per core (SLURM `DefMemPerCPU`; from `scontrol show partition fat_genoa` and
-`scontrol show node`). Each experiment ran as one SLURM job on one node
+Netherlands); its partitions are described in the
+[SURF documentation](https://servicedesk.surf.nl/wiki/spaces/WIKI/pages/30660209/Snellius+partitions+and+accounting).
+Each experiment ran as one SLURM job on one node
 (the global sensitivity analysis as a 5-task array, one node per task), with 192 single-core
 Julia workers and 336 GB of memory requested per node (`--ntasks=192 --cpus-per-task=1
---mem=336G`). That node type was the one available; the experiments do not need it.
+--mem=336G`). The experiments do not need this hardware.
 
 SLURM writes each job's log to `logs/` in the repository root before the job starts, so create
 that folder (`mkdir logs`) before the first `sbatch`.
@@ -125,22 +124,21 @@ cluster, the whole job (192 workers and the main process) peaked at 148 GiB for 
 analysis and the calibration and at 154 GiB for the cascade experiment (SLURM `MaxRSS`), about
 0.8 GB per worker.
 
-**Time.** One run takes 8 to 9 s on one core, on a Genoa node and on an Apple M3 Pro alike.
+**Time.** One run takes 8 to 9 s on one core, on a cluster node and on an Apple M3 Pro alike.
 
 Cluster rows from SLURM accounting (`sacct`); core-hours are allocated cores x elapsed time.
 Laptop rows: Apple M3 Pro (11 cores).
 
 | Experiment | Where | Runs | Elapsed | Core-hours |
 |---|---|---|---|---|
-| `global_sa`, simulation | cluster: array of 5 tasks, one node (192 cores) each, 2026-10-29 | 166,400 | 28 to 31 min per task | 473 |
-| `global_sa`, reduction | cluster: one node (192 cores), 2026-10-29 | | 28 min | 90 |
-| `abc_calibration`, simulation and reduction | cluster: one node (192 cores), 2026-11-04 | 10,010 | 11 min | 35 |
-| `cascades_rnet`, simulation | cluster: one node (192 cores), 2026-11-10 | 65,520 | 75 min | 239 |
-| `cascades_rnet`, reduction and cascade trees | cluster: 24 and 72 cores, 2026-11-10 | | 1 and 2 min | 2 |
-| `foreclosure_timing` | laptop, 10 workers, 2026-11-10 | 1,050 | 13 to 15 min | 2.4 (sum of run times) |
-| `zeta_scale` | laptop, 8 workers, 2026-11-17 | 505 | 7 min | about 1 |
+| `global_sa`, simulation | cluster: array of 5 tasks, one node (192 cores) each | 166,400 | 28 to 31 min per task | 473 |
+| `global_sa`, reduction | cluster: one node (192 cores) | | 28 min | 90 |
+| `abc_calibration`, simulation and reduction | cluster: one node (192 cores) | 10,010 | 11 min | 35 |
+| `cascades_rnet`, simulation | cluster: one node (192 cores) | 65,520 | 75 min | 239 |
+| `cascades_rnet`, reduction and cascade trees | cluster: 24 and 72 cores | | 1 and 2 min | 2 |
+| `foreclosure_timing` | laptop, 10 workers | 1,050 | 13 to 15 min | 2.4 (sum of run times) |
+| `zeta_scale` | laptop, 8 workers | 505 | 7 min | about 1 |
 
-Snellius ran Red Hat Enterprise Linux 9.8 (kernel 5.14, x86-64), Julia 1.10.4.
 
 ## Main text
 

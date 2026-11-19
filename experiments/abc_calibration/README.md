@@ -33,6 +33,6 @@ The 10 runs of one combination on a laptop, for example the calibrated combinati
 
 ## Reproducibility
 
-Checked on 2026-11-17: `design.py` reproduces the 1,001 combinations and the run list of the
+Checked: `design.py` reproduces the 1,001 combinations and the run list of the
 cluster job exactly; the 10 runs of combination 226, rerun on a laptop and reduced, reproduce
 their rows of `runs_set0.csv.gz` (identical counts; rates equal to the last binary digit).

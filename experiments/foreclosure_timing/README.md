@@ -30,6 +30,6 @@ Apple M3 Pro.
 
 ## Reproducibility
 
-Checked on 2026-11-17: 15 runs (gap runs 0, 1, 75, 150, 299, 300, 450, 600, 700, 749; beta3
+Checked: 15 runs (gap runs 0, 1, 75, 150, 299, 300, 450, 600, 700, 749; beta3
 runs 0, 30, 150, 180, 299), rerun with this runner and the model in `model/`, reproduce the
 output used in the paper exactly (every column of the run table and every foreclosure record).

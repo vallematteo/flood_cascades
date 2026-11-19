@@ -40,7 +40,7 @@ Each run takes about 9 s on one core. The reduction steps take about 4 minutes o
 
 ## Reproducibility
 
-Checked on 2026-11-17: runs 1680, 1840, 6720, 6880, 57120 and 57280, rerun on a laptop
+Checked: runs 1680, 1840, 6720, 6880, 57120 and 57280, rerun on a laptop
 (Apple M3 Pro, Julia 1.10.4), reproduce the cluster output exactly (every column of the run
 table and every foreclosure record). The reduction steps, rerun on the cluster's raw output,
 reproduce every file in `data/cascades_rnet/`.
