@@ -1,9 +1,10 @@
 """SI Fig. 10: net reproduction number of the foreclosure feedback with and without floods, by
 radius kappa, gap beta1 - beta2, damage share lambda and flood-induced unemployment vartheta.
 
-Top: R_net against delta at S0 (open squares) and under S1-S4 (filled circles), means with 95%
-Student-t intervals, each run one observation. In the lambda and vartheta columns S0 does not
-depend on the level and is drawn once, in black. Bottom: Delta R_net = R_net(S1-S4) - R_net(S0),
+Top: R_net against delta at S0 (open squares) and under S1-S4 (filled circles), means over 20
+seeds with 95% Student-t intervals, the flooded runs of each seed averaged over the scenarios and
+lambda (the seed is the unit). In the lambda and vartheta columns S0 does not depend on the level
+and is drawn once, in black. Bottom: Delta R_net = R_net(S1-S4) - R_net(S0),
 per seed (flooded runs of the seed averaged, minus the S0 run of the same seed), 95% bands over
 20 seeds.
 
@@ -37,16 +38,15 @@ COLUMNS = [
 
 
 def r_curve(ps, kappa, beta2, lam=None):
-    """R_net at S0 and under floods (S1-S4, and lambda unless fixed), each run one observation;
-    Delta R_net per seed. ps is sliced to one vartheta."""
+    """R_net at S0 and under floods (S1-S4, and lambda unless fixed) and Delta R_net, with the seed as
+    unit: the flooded runs of each seed are averaged, then mean and t interval over the seeds.
+    ps is sliced to one vartheta."""
     d = ps[(ps.kappa == kappa) & (ps.beta2 == beta2) & (ps.delta > 0)]
     fl = d[d.setting > 0] if lam is None else d[(d.setting > 0) & (d["lambda"] == lam)]
-    s0 = summarise(d[d.setting == 0].rename(columns={"R_net": "S0"}), ["delta"], ["S0"])
-    flr = summarise(fl.rename(columns={"R_net": "flooded"}), ["delta"], ["flooded"])
     w = pd.concat([d[d.setting == 0].groupby(["delta", "seed"])["R_net"].mean().rename("S0"),
                    fl.groupby(["delta", "seed"])["R_net"].mean().rename("flooded")], axis=1).reset_index()
     w["dR"] = w.flooded - w.S0
-    return s0.merge(flr, on="delta").merge(summarise(w, ["delta"], ["dR"]), on="delta")
+    return summarise(w, ["delta"], ["S0", "flooded", "dR"])
 
 
 def main():

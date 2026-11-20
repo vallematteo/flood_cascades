@@ -633,12 +633,6 @@ def cascades():
     c7 = r_curve(0.05, 10, 0.3)
     number(w, "gap 0.7: Delta R_net interval above zero only at delta = 0.175 (1 = yes)",
            float(c7[c7.dR_lo > 0].delta.round(4).tolist() == [0.175]), 0)
-    cors = []
-    for _, g in ps[(ps.setting > 0) & (ps.delta > 0)].groupby(["kappa", "beta2", "delta"]):
-        c = np.corrcoef(g.pivot_table(index="seed", columns=["setting", "lambda"], values="R_net").to_numpy().T)
-        cors.append(c[np.triu_indices_from(c, 1)].mean())
-    number("SI Fig. 10 caption", "mean pairwise correlation of flooded runs sharing a seed, lowest", min(cors))
-    number("SI Fig. 10 caption", "mean pairwise correlation of flooded runs sharing a seed, highest", max(cors))
 
     pct = flooded.set_index(["delta", "setting"]).dM_net
     for d in (0.125, 0.15, 0.25):

@@ -75,16 +75,17 @@ def table_si5():
 
 def table_si6():
     s, pos, accepted, band, ks = abc_results()
-    main, strict = ks[ks.tol == 0.05].set_index("param"), ks[ks.tol == 0.01].set_index("param")
+    main = ks[ks.tol == 0.05].set_index("param")
     boot = abc_bootstrap(pos, accepted[0.05], main.ks_p95.iloc[0]).set_index("param")
     num = lambda v, bold: rf"$\mathbf{{{v:.2f}}}$" if bold else f"${v:.2f}$"
+    pval = lambda p: r"$<0.001$" if p < 1e-3 else (f"${p:.3f}$" if p < 0.01 else f"${p:.2f}$")
     rows = [rf"${SYMBOL[p]}$ & {num(main.loc[p, 'ks'], main.loc[p, 'constrained'])} & "
             rf"$[{boot.loc[p, 'ks_lo']:.2f},\,{boot.loc[p, 'ks_hi']:.2f}]$ & ${boot.loc[p, 'p_above']:.2f}$ & "
-            rf"{num(strict.loc[p, 'ks'], strict.loc[p, 'constrained'])} \\" for p in ABC_PARAMS]
+            rf"{pval(main.loc[p, 'p_maxt'])} \\" for p in ABC_PARAMS]
     write("table_S6", [r"\begin{tabular}{l c c c c}", r"\toprule",
-                       r"Parameter & KS ($5\%$) & Bootstrap $90\%$ interval & Share above threshold & KS ($1\%$) \\",
+                       r"Parameter & KS & Bootstrap $90\%$ interval & Share above threshold & Adjusted $P$ \\",
                        r"\midrule", *rows, r"\midrule",
-                       rf"Max-$T$ threshold & ${main.ks_p95.iloc[0]:.2f}$ & & & ${strict.ks_p95.iloc[0]:.2f}$ \\",
+                       rf"Max-$T$ threshold & ${main.ks_p95.iloc[0]:.2f}$ & & & \\",
                        r"\bottomrule", r"\end{tabular}"])
 
 

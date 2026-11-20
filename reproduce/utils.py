@@ -135,27 +135,41 @@ def abc_position(s):
     return pd.DataFrame({p: (s[p] - b[p][0]) / (b[p][1] - b[p][0]) for p in ABC_PARAMS}, index=s.index)
 
 
-def max_t_threshold(ref, k, n_perm=2000, seed=0):
-    """95% quantile, over random subsets of k rows of ref, of the largest KS distance between
-    subset and ref across the parameters (max-T permutation threshold)."""
+def max_t_null(ref, k, n_perm=2000, seed=0):
+    """Null distribution of the max-T statistic: over random subsets of k rows of ref, the largest
+    KS distance between subset and ref across the parameters."""
     rng = np.random.default_rng(seed)
     null = np.empty(n_perm)
     for b in range(n_perm):
         sub = ref[rng.choice(len(ref), k, replace=False)]
         null[b] = max(stats.ks_2samp(sub[:, j], ref[:, j]).statistic for j in range(ref.shape[1]))
-    return np.quantile(null, 0.95)
+    return null
+
+
+def max_t_threshold(ref, k, n_perm=2000, seed=0):
+    """95% quantile of the max-T null (max-T permutation threshold)."""
+    return np.quantile(max_t_null(ref, k, n_perm, seed), 0.95)
+
+
+def max_t_pvalue(ks, null):
+    """Family-wise adjusted p-value of a KS statistic against the max-T null, with the
+    finite-permutation correction of Phipson and Smyth (2010): (1 + #{null >= ks}) / (B + 1)."""
+    return (1 + int(np.sum(null >= ks))) / (len(null) + 1)
 
 
 def abc_ks(pos, accepted):
     """Per parameter: KS distance between retained and all combinations, the max-T threshold,
-    whether the parameter is constrained (KS above the threshold), and retained quantiles."""
-    p95 = max_t_threshold(pos.to_numpy(), len(accepted))
+    the max-T adjusted p-value, whether the parameter is constrained (KS above the threshold),
+    and retained quantiles."""
+    null = max_t_null(pos.to_numpy(), len(accepted))
+    p95 = np.quantile(null, 0.95)
     rows = []
     for p in ABC_PARAMS:
         a, r = pos.loc[accepted, p], pos[p]
         q05, q50, q95 = a.quantile([0.05, 0.5, 0.95])
-        rows.append({"param": p, "n_accepted": len(accepted), "ks": stats.ks_2samp(a, r).statistic,
-                     "ks_p95": p95, "q05": q05, "q50": q50, "q95": q95})
+        ks = stats.ks_2samp(a, r).statistic
+        rows.append({"param": p, "n_accepted": len(accepted), "ks": ks, "ks_p95": p95,
+                     "p_maxt": max_t_pvalue(ks, null), "q05": q05, "q50": q50, "q95": q95})
     out = pd.DataFrame(rows)
     out["constrained"] = out.ks > out.ks_p95
     return out
